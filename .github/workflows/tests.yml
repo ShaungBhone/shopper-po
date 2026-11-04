@@ -1,0 +1,35 @@
+name: Tests
+on: [push, pull_request]
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.3', '8.4']
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: shopper_po_local_test
+          MYSQL_DATABASE: shopper_po_test
+        ports: ['33077:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -pshopper_po_local_test"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '${{ matrix.php }}'
+          extensions: intl, bcmath, gd, pdo_mysql, pdo_sqlite, pcntl
+          coverage: none
+      - run: composer install --prefer-dist --no-interaction
+      - run: npm ci --ignore-scripts
+      - run: npm run format:check
+      - run: composer lint
+      - run: composer test
+      - run: PO_TEST_MYSQL=1 composer test

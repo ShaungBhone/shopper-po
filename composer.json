@@ -1,0 +1,48 @@
+{
+  "name": "community/shopper-purchase-orders",
+  "description": "Purchase orders and auditable receiving for Laravel Shopper 2.12.",
+  "type": "library",
+  "license": "MIT",
+  "require": {
+    "php": "^8.3",
+    "shopper/framework": "~2.12.1",
+    "illuminate/support": "^12.0",
+    "livewire/livewire": "^3.8",
+    "filament/filament": "^4.12"
+  },
+  "require-dev": {
+    "orchestra/testbench": "^10.0",
+    "phpunit/phpunit": "^11.5",
+    "laravel/pint": "^1.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "ShopperPurchaseOrders\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "ShopperPurchaseOrders\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "ShopperPurchaseOrders\\PurchaseOrdersServiceProvider"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "phpunit",
+    "lint": "pint --test"
+  },
+  "config": {
+    "sort-packages": true,
+    "allow-plugins": false,
+    "platform": {
+      "php": "8.3.0"
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true
+}
