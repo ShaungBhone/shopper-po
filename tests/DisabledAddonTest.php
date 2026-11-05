@@ -14,7 +14,7 @@ final class DisabledAddonTest extends TestCase
         $app['config']->set('shopper.addons.purchase-orders', false);
     }
 
-    public function test_disabled_addon_has_no_registered_routes_or_components(): void
+    public function test_disabled_addon_has_no_registered_panel_resources(): void
     {
         $this->assertNull(Route::getRoutes()->getByName('shopper.purchase-orders.index'));
         $this->assertFalse(app('shopper')->hasAddon('purchase-orders'));
@@ -22,5 +22,7 @@ final class DisabledAddonTest extends TestCase
             'purchase-orders.index',
             app('shopper')->addonManager()->getLivewireComponents(),
         );
+        $this->assertFalse(view()->exists('purchase-orders::index'));
+        $this->assertSame([], app('shopper')->addonManager()->getPermissions());
     }
 }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace ShopperPurchaseOrders\Tests;
 
-use Filament\Schemas\Components\Wizard;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
@@ -47,6 +46,11 @@ final class AdminTest extends TestCase
             Index::class,
             app('shopper')->addonManager()->getLivewireComponents()['purchase-orders.index'],
         );
+        $this->assertTrue(view()->exists('purchase-orders::index'));
+        $this->assertEqualsCanonicalizing(
+            config('permission.models.permission')::query()->where('name', 'like', '%_purchase_orders')->pluck('name')->all(),
+            app('shopper')->addonManager()->getPermissions(),
+        );
     }
 
     public function test_full_admin_route_renders_inside_shopper_layout(): void
@@ -77,6 +81,9 @@ final class AdminTest extends TestCase
         ) {
             Setting::query()->updateOrCreate(['key' => $key], ['value' => $value]);
         }
+        $this->get(route('shopper.purchase-orders.create'))
+            ->assertRedirect(route('shopper.purchase-orders.index'));
+
         $this->get(route('shopper.purchase-orders.index'))
             ->assertOk()
             ->assertSee('Purchase orders');
@@ -362,16 +369,18 @@ final class AdminTest extends TestCase
     public function test_creation_has_four_steps_and_add_only_permission_can_reach_review(): void
     {
         $this->user->revokePermissionTo('edit_purchase_orders');
+        $this->user->revokePermissionTo('read_purchase_orders');
         $editor = Livewire::test(Form::class);
         $wizard = $editor->instance()->getSchema('draftWizard')->getComponents()[0];
-        $this->assertInstanceOf(Wizard::class, $wizard);
-        $this->assertNotInstanceOf(SlideOverWizard::class, $wizard);
+        $this->assertInstanceOf(SlideOverWizard::class, $wizard);
+        $editor->assertSee('New purchase order');
         $steps = $wizard->getChildSchema()->getComponents();
         $this->assertSame(['Details', 'Products', 'Pricing', 'Review'], array_map(fn ($step) => $step->getLabel(), $steps));
         [$details, $products, $pricing, $review] = array_map(fn ($step) => $step->getKey(), $steps);
         $key = $wizard->getKey();
         $editor->set('data.supplier_id', $this->supplier->id)
             ->set('data.inventory_id', $this->inventory->id)
+            ->set('data.expected_at', '2026-12-01 00:00:00')
             ->call('callSchemaComponentMethod', $key, 'nextStep', ['currentStepIndex' => 0, 'currentStepKey' => $details])
             ->assertHasNoErrors()->assertDispatched('next-wizard-step', step: $products)
             ->call('addProduct', 'product:'.$this->product->id)
@@ -384,8 +393,10 @@ final class AdminTest extends TestCase
             ->call('callSchemaComponentMethod', $key, 'nextStep', ['currentStepIndex' => 2, 'currentStepKey' => $pricing])
             ->assertHasNoErrors()->assertDispatched('next-wizard-step', step: $review)
             ->assertSet('data.items.0.unit_cost_minor', '0')
-            ->call('save')->assertHasNoErrors()->assertRedirect();
-        $this->assertSame(0, PurchaseOrder::latest('id')->firstOrFail()->items()->sole()->unit_cost_minor);
+            ->call('save')->assertHasNoErrors()->assertRedirect(route('shopper.purchase-orders.index'));
+        $order = PurchaseOrder::latest('id')->firstOrFail();
+        $this->assertSame(0, $order->items()->sole()->unit_cost_minor);
+        $this->assertSame('2026-12-01', $order->expected_at?->format('Y-m-d'));
     }
 
     public function test_product_step_has_no_prices_and_validates_identity_without_requiring_costs(): void
@@ -433,6 +444,10 @@ final class AdminTest extends TestCase
         $editor->set('data.currency', 'USD')->set('data.items.0.unit_cost_minor', '0')->call('refreshPricing', 0);
         $this->assertSame(0, $editor->instance()->pricingSummary['subtotal_minor']);
         $editor->assertSet('data.items.0.unit_cost_minor', '0');
+        $editor->set('data.items.0.ordered_quantity', 0);
+        $this->assertNull($editor->instance()->pricingSummary['total_quantity']);
+        $editor->call('removeLine', 0);
+        $this->assertSame(0, $editor->instance()->pricingSummary['total_quantity']);
     }
 
     public function test_pricing_totals_all_pages_and_reveals_the_first_invalid_cost_page(): void
@@ -447,7 +462,11 @@ final class AdminTest extends TestCase
             $editor->set("data.items.{$index}.unit_cost_minor", '1.25');
         }
         $this->assertSame(1500, $editor->instance()->pricingSummary['subtotal_minor']);
-        $editor->set('lineSearch', 'no-matches')->set('data.items.11.unit_cost_minor', null)
+        $editor->call('gotoPage', 2, 'pricingPage')->assertSet('paginators.pricingPage', 2);
+        $this->assertSame(12, $editor->instance()->pricingSummary['total_quantity']);
+        $editor->set('data.items.11.unit_cost_minor', null);
+        $this->assertSame(12, $editor->instance()->pricingSummary['total_quantity']);
+        $editor->call('gotoPage', 1, 'pricingPage')
             ->call('save')->assertHasErrors('data.items.11.unit_cost_minor')
             ->assertSet('paginators.pricingPage', 2)->assertDispatched('draft-wizard-error', step: 'draftWizard.pricing')
             ->assertSee('costsForm.items.11.unit_cost_minor')
@@ -501,7 +520,7 @@ final class AdminTest extends TestCase
             ->assertSee('13 lines')
             ->set('data.items.12.ordered_quantity', 4)
             ->set('data.items.12.unit_cost_minor', '7.25')
-            ->set('lineSearch', 'PO-CAT-01')
+            ->call('gotoPage', 1, 'draftLinesPage')
             ->assertSet('paginators.draftLinesPage', 1)
             ->assertSee('PO-CAT-01')
             ->set('data.items.1.ordered_quantity', 5)
@@ -878,6 +897,10 @@ final class AdminTest extends TestCase
         $this->artisan('purchase-orders:install')->assertSuccessful();
         $this->assertSame($before, $permission::query()->count());
         $this->assertTrue($permission::query()->where('name', 'existing_permission')->exists());
+        $role = config('permission.models.role')::create(['name' => 'procurement', 'guard_name' => 'web']);
+        $this->artisan('purchase-orders:install', ['--role' => $role->name])->assertSuccessful();
+        $this->assertTrue($role->fresh()->hasPermissionTo('receive_purchase_orders'));
+        $this->assertFalse($role->fresh()->hasPermissionTo('existing_permission'));
         $this->artisan('purchase-orders:install', ['--role' => 'missing'])->assertFailed();
     }
 

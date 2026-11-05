@@ -10,19 +10,9 @@
         @endif
 
         @if ($data['items'])
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <p class="text-sm text-gray-500 dark:text-gray-400">
-                    {{ count($data['items']) }} {{ count($data['items']) === 1 ? 'line' : 'lines' }}
-                </p>
-                <x-filament::input.wrapper prefix-icon="heroicon-m-magnifying-glass">
-                    <x-filament::input
-                        wire:model.live.debounce.300ms="lineSearch"
-                        wire:keydown.enter.prevent
-                        placeholder="Find an order line"
-                        aria-label="Find an order line"
-                    />
-                </x-filament::input.wrapper>
-            </div>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+                {{ count($data['items']) }} {{ count($data['items']) === 1 ? 'line' : 'lines' }}
+            </p>
         @endif
 
         <ul class="space-y-3">
@@ -32,73 +22,85 @@
                     $quantityPath = "data.items.{$index}.ordered_quantity";
                 @endphp
                 <li
-                    class="flex items-start gap-3 rounded-lg border border-gray-200 p-3 dark:border-white/10"
+                    class="flex items-center gap-3"
                     wire:key="draft-line-{{ $index }}-{{ $data['currency'] }}"
                 >
-                    <img
-                        src="{{ $line['thumbnail'] }}"
-                        alt=""
-                        class="size-10 shrink-0 rounded object-cover"
-                        loading="lazy"
-                    />
-                    <div class="min-w-0 flex-1">
-                        <p class="break-words text-sm font-medium">{{ $line['name'] }}</p>
-                        @if ($line['sku'])
-                            <p class="break-all text-xs text-gray-500 dark:text-gray-400">
-                                {{ $line['sku'] }}</p>
-                        @endif
-                    </div>
-                    <div class="flex shrink-0 flex-col items-end gap-3">
-                        <x-filament::icon-button
-                            type="button"
-                            color="gray"
-                            icon="heroicon-m-trash"
-                            :label="'Remove ' . $line['name']"
-                            wire:click="removeLine({{ $index }})"
-                        />
-                        <div class="flex items-center gap-1">
-                            <x-filament::icon-button
-                                type="button"
-                                color="gray"
-                                icon="heroicon-m-minus"
-                                :label="'Decrease quantity for ' . $line['name']"
-                                wire:click="changeQuantity({{ $index }}, -1)"
-                                :disabled="(int) ($data['items'][$index]['ordered_quantity'] ??
-                                    0) <= 1"
+                    <div
+                        class="min-w-0 flex-1 flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                        <div
+                            class="flex min-w-0 items-center gap-3"
+                            style="flex: 1 1 10rem"
+                        >
+                            <img
+                                src="{{ $line['thumbnail'] }}"
+                                alt=""
+                                class="size-10 shrink-0 rounded object-cover"
+                                loading="lazy"
                             />
-                            <input
-                                type="number"
-                                min="1"
-                                max="{{ \ShopperPurchaseOrders\Support\Limits::MAX_QUANTITY }}"
-                                step="1"
-                                class="w-12 rounded border-0 bg-transparent p-1 text-center text-sm focus:ring-2 focus:ring-primary-500"
-                                aria-label="Quantity for {{ $line['name'] }}"
-                                wire:model.live.debounce.300ms="{{ $quantityPath }}"
-                                wire:keydown.enter.prevent
-                            />
-                            <x-filament::icon-button
-                                type="button"
-                                color="gray"
-                                icon="heroicon-m-plus"
-                                :label="'Increase quantity for ' . $line['name']"
-                                wire:click="changeQuantity({{ $index }}, 1)"
-                                :disabled="(int) ($data['items'][$index]['ordered_quantity'] ??
-                                    0) >= \ShopperPurchaseOrders\Support\Limits::MAX_QUANTITY"
-                            />
+                            <div class="min-w-0 flex-1">
+                                <p class="break-words text-sm font-medium">{{ $line['name'] }}</p>
+                                @if ($line['sku'])
+                                    <p class="break-all text-xs text-gray-500 dark:text-gray-400">
+                                        {{ $line['sku'] }}</p>
+                                @endif
+                            </div>
                         </div>
-                        @error($quantityPath)
-                            <p class="max-w-40 text-xs text-danger-600 dark:text-danger-400">
-                                {{ $message }}</p>
-                        @enderror
-                        @error('items.' . $index . '.ordered_quantity')
-                            <p class="max-w-40 text-xs text-danger-600 dark:text-danger-400">
-                                {{ $message }}</p>
-                        @enderror
+                        <div
+                            class="shrink-0"
+                            style="margin-inline-start: auto"
+                        >
+                            <div class="flex items-center gap-1">
+                                <x-filament::icon-button
+                                    type="button"
+                                    color="gray"
+                                    icon="heroicon-m-minus"
+                                    :label="'Decrease quantity for ' . $line['name']"
+                                    wire:click="changeQuantity({{ $index }}, -1)"
+                                    :disabled="(int) ($data['items'][$index]['ordered_quantity'] ??
+                                        0) <= 1"
+                                />
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="{{ \ShopperPurchaseOrders\Support\Limits::MAX_QUANTITY }}"
+                                    step="1"
+                                    class="w-12 rounded border-0 bg-transparent p-1 text-center text-sm focus:ring-2 focus:ring-primary-500"
+                                    aria-label="Quantity for {{ $line['name'] }}"
+                                    wire:model.live="{{ $quantityPath }}"
+                                    wire:keydown.enter.prevent
+                                />
+                                <x-filament::icon-button
+                                    type="button"
+                                    color="gray"
+                                    icon="heroicon-m-plus"
+                                    :label="'Increase quantity for ' . $line['name']"
+                                    wire:click="changeQuantity({{ $index }}, 1)"
+                                    :disabled="(int) ($data['items'][$index]['ordered_quantity'] ??
+                                        0) >= \ShopperPurchaseOrders\Support\Limits::MAX_QUANTITY"
+                                />
+                            </div>
+                            @error($quantityPath)
+                                <p class="max-w-40 text-xs text-danger-600 dark:text-danger-400">
+                                    {{ $message }}</p>
+                            @enderror
+                            @error('items.' . $index . '.ordered_quantity')
+                                <p class="max-w-40 text-xs text-danger-600 dark:text-danger-400">
+                                    {{ $message }}</p>
+                            @enderror
+                        </div>
                     </div>
+                    <x-filament::icon-button
+                        class="shrink-0"
+                        type="button"
+                        color="gray"
+                        icon="heroicon-m-trash"
+                        :label="'Remove ' . $line['name']"
+                        wire:click="removeLine({{ $index }})"
+                    />
                 </li>
             @empty
                 <li class="py-3 text-sm text-gray-500 dark:text-gray-400">
-                    {{ $data['items'] ? 'No order lines match your search.' : 'Search for a product to add your first order line.' }}
+                    Search for a product to add your first order line.
                 </li>
             @endforelse
         </ul>

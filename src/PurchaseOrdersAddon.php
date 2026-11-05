@@ -7,6 +7,7 @@ namespace ShopperPurchaseOrders;
 use Illuminate\Support\Facades\Route;
 use Shopper\Addon\BaseAddon;
 use Shopper\ShopperPanel;
+use ShopperPurchaseOrders\Support\Access;
 
 final class PurchaseOrdersAddon extends BaseAddon
 {
@@ -22,7 +23,8 @@ final class PurchaseOrdersAddon extends BaseAddon
                 ->name('purchase-orders.')
                 ->group(function (): void {
                     Route::get('/', Livewire\Index::class)->name('index');
-                    Route::get('/create', Livewire\Form::class)->name('create');
+                    Route::get('/create', fn () => redirect()->route('shopper.purchase-orders.index'))
+                        ->name('create');
                     Route::get('/{orderId}/edit', fn (int $orderId) => redirect()->route(
                         'shopper.purchase-orders.show',
                         ['orderId' => $orderId],
@@ -44,5 +46,7 @@ final class PurchaseOrdersAddon extends BaseAddon
             'purchase-orders.detail' => Livewire\Detail::class,
             'purchase-orders.receive' => Livewire\Receive::class,
         ]);
+        $panel->addonViews('purchase-orders', __DIR__.'/../resources/views');
+        $panel->addonPermissions(Access::permissions());
     }
 }

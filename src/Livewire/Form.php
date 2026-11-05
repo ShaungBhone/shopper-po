@@ -7,11 +7,12 @@ namespace ShopperPurchaseOrders\Livewire;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\View as SchemaView;
-use Filament\Schemas\Components\Wizard;
 use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Concerns\InteractsWithSchemas;
 use Filament\Schemas\Contracts\HasSchemas;
@@ -25,7 +26,6 @@ use Illuminate\Support\HtmlString;
 use Illuminate\Validation\ValidationException;
 use Laravelcm\LivewireSlideOvers\SlideOverComponent;
 use Livewire\Attributes\Computed;
-use Livewire\Attributes\Layout;
 use Livewire\Attributes\Locked;
 use Livewire\WithoutUrlPagination;
 use Livewire\WithPagination;
@@ -40,7 +40,6 @@ use ShopperPurchaseOrders\Support\Currencies;
 use ShopperPurchaseOrders\Support\Limits;
 use ShopperPurchaseOrders\Support\Stock;
 
-#[Layout(name: 'shopper::components.layouts.app')]
 final class Form extends SlideOverComponent implements HasActions, HasSchemas
 {
     use InteractsWithActions;
@@ -77,8 +76,6 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
     ];
 
     public ?string $productSelection = null;
-
-    public string $lineSearch = '';
 
     public static function panelMaxWidth(): string
     {
@@ -135,6 +132,53 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
         }
 
         $this->costsForm->fill($this->data);
+    }
+
+    public function detailsForm(Schema $schema): Schema
+    {
+        $options = $this->draftOptions;
+
+        return $schema
+            ->statePath('data')
+            ->columns(['sm' => 2])
+            ->components([
+                Select::make('supplier_id')
+                    ->label('Supplier')
+                    ->options($options['suppliers']->pluck('name', 'id')->all())
+                    ->placeholder('Select enabled supplier')
+                    ->native(false)
+                    ->searchable()
+                    ->required(),
+                Select::make('inventory_id')
+                    ->label('Destination inventory')
+                    ->options($options['inventories']->pluck('name', 'id')->all())
+                    ->placeholder('Select destination')
+                    ->native(false)
+                    ->searchable()
+                    ->required(),
+                Select::make('currency')
+                    ->options(array_combine($options['currencies'], $options['currencies']))
+                    ->placeholder('Select currency')
+                    ->native(false)
+                    ->searchable()
+                    ->required()
+                    ->live(),
+                DatePicker::make('expected_at')
+                    ->label('Expected delivery')
+                    ->format('Y-m-d')
+                    ->native(false)
+                    ->closeOnDateSelection(),
+                TextInput::make('supplier_reference')
+                    ->maxLength(255),
+            ]);
+    }
+
+    public function updatedDataExpectedAt(mixed $value): void
+    {
+        // The JavaScript date picker sends a midnight timestamp for date-only fields.
+        if (is_string($value) && preg_match('/\A\d{4}-\d{2}-\d{2} 00:00:00\z/', $value)) {
+            $this->data['expected_at'] = substr($value, 0, 10);
+        }
     }
 
     public function productPicker(Schema $schema): Schema
@@ -198,14 +242,8 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
             'ordered_quantity' => 1,
             'unit_cost_minor' => $cost === null ? null : (is_no_division_currency($this->data['currency']) ? $cost : $cost / 100),
         ];
-        $this->reset('lineSearch');
         $this->resetValidation('productSelection');
         $this->setPage(max(1, (int) ceil(count($this->data['items']) / self::PAGE_SIZE)), 'draftLinesPage');
-    }
-
-    public function updatedLineSearch(): void
-    {
-        $this->resetPage('draftLinesPage');
     }
 
     public function changeQuantity(int $index, int $delta): void
@@ -250,15 +288,19 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
             ->statePath('data')
             ->components(array_map(
                 fn (int $index): MoneyInput => MoneyInput::make("items.{$index}.unit_cost_minor")
-                    ->label('Unit cost')
+                    ->label(fn (): string => 'Unit cost for '.$this->lineRecords[$index]['name'])
+                    ->hiddenLabel()
                     ->currency($currency)
                     ->currencyMask(precision: $precision)
-                    ->suffix($currency)
+                    ->suffix($currency, isInline: true)
                     ->minValue(0)
                     ->maxValue(Limits::MAX_TOTAL_MINOR / (10 ** $precision))
                     ->rules($this->costRules())
                     ->live(false)
-                    ->extraInputAttributes(['x-on:blur' => "updateInput(); \$wire.refreshPricing({$index})"]),
+                    ->extraInputAttributes([
+                        'x-on:blur' => "updateInput(); \$wire.refreshPricing({$index})",
+                        'class' => 'text-right',
+                    ]),
                 array_keys($this->data['items']),
             ));
     }
@@ -286,13 +328,10 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
 
     public function draftWizard(Schema $schema): Schema
     {
-        $wizard = $this->orderId === null ? Wizard::make($this->wizardSteps()) : SlideOverWizard::make($this->wizardSteps());
-        $cancel = $this->orderId === null
-            ? Blade::render('<x-filament::button tag="a" :href="route(\'shopper.purchase-orders.index\')" color="gray">Cancel</x-filament::button>')
-            : Blade::render('<x-filament::button type="button" color="gray" wire:click="$dispatch(\'closePanel\')">Cancel</x-filament::button>');
+        $cancel = Blade::render('<x-filament::button type="button" color="gray" wire:click="$dispatch(\'closePanel\')">Cancel</x-filament::button>');
 
         return $schema->components([
-            $wizard
+            SlideOverWizard::make($this->wizardSteps())
                 ->label('Purchase order steps')
                 ->previousAction(fn (Action $action): Action => $action->label('Back'))
                 ->extraAlpineAttributes([
@@ -313,8 +352,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
             Step::make('Details')->key('details')->icon('heroicon-o-document-text')
                 ->afterValidation(fn () => $this->validateDraftStep('details'))
                 ->schema([
-                    SchemaView::make('purchase-orders::partials.draft-details')
-                        ->viewData(fn (): array => $this->draftOptions),
+                    SchemaView::make('purchase-orders::partials.draft-details'),
                 ]),
             Step::make('Products')->key('products')->icon('heroicon-o-cube')
                 ->afterValidation(fn () => $this->validateDraftStep('products'))
@@ -406,9 +444,6 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
             $position = array_search((int) $matches[1], array_keys($this->data['items']), true);
             if ($position !== false) {
                 $pageName = $step === 'pricing' ? 'pricingPage' : 'draftLinesPage';
-                if ($step === 'products') {
-                    $this->reset('lineSearch');
-                }
                 $this->setPage(intdiv($position, self::PAGE_SIZE) + 1, $pageName);
             }
         }
@@ -417,7 +452,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
 
     public function save(): mixed
     {
-        Access::authorize($this->orderId ? 'edit' : 'add');
+        $user = Access::authorize($this->orderId ? 'edit' : 'add');
         try {
             Validator::make($this->data, Arr::only(Purchasing::draftRules($this->savedCurrency), self::DETAILS_FIELDS))->validate();
             $order = app(Purchasing::class)->saveDraft($this->validatePricing(), $this->orderId, $this->version);
@@ -428,7 +463,11 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
         }
 
         if ($this->orderId === null) {
-            return $this->redirectRoute('shopper.purchase-orders.show', ['orderId' => $order->id]);
+            if ($user->can('read_purchase_orders')) {
+                return $this->redirectRoute('shopper.purchase-orders.show', ['orderId' => $order->id]);
+            }
+
+            return $this->redirectRoute('shopper.purchase-orders.index');
         }
 
         Notification::make()->title('Draft updated')->success()->send();
@@ -443,11 +482,8 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
     {
         Access::authorize($this->orderId ? 'edit' : 'add');
         $this->cacheSchema('costsForm');
-        if ($this->orderId !== null) {
-            return view('purchase-orders::edit-draft')->title('Edit purchase order');
-        }
 
-        return view('purchase-orders::form')->title('New purchase order');
+        return view('purchase-orders::draft-panel');
     }
 
     #[Computed]
@@ -495,11 +531,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
 
     private function draftLines(): LengthAwarePaginator
     {
-        $search = mb_strtolower(trim(mb_substr($this->lineSearch, 0, 100)));
-        $lines = collect($this->lineRecords)->filter(fn (array $line): bool => $search === ''
-            || str_contains(mb_strtolower($line['name'].' '.$line['sku']), $search));
-
-        return $this->paginateLines($lines, 'draftLinesPage');
+        return $this->paginateLines(collect($this->lineRecords), 'draftLinesPage');
     }
 
     private function pricingLines(string $pageName): LengthAwarePaginator
@@ -547,6 +579,8 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
     {
         $limit = Limits::MAX_TOTAL_MINOR;
         $subtotal = 0;
+        $totalQuantity = 0;
+        $allQuantitiesValid = true;
         $complete = count($this->data['items']) > 0;
         $overLimit = false;
         $lines = [];
@@ -555,6 +589,8 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
             $cost = $this->previewCost($item['unit_cost_minor'] ?? null);
             $quantity = $item['ordered_quantity'] ?? null;
             $validQuantity = is_scalar($quantity) && Validator::make(['quantity' => $quantity], ['quantity' => Purchasing::draftRules()['items.*.ordered_quantity']])->passes();
+            $totalQuantity += $validQuantity ? (int) $quantity : 0;
+            $allQuantitiesValid = $allQuantitiesValid && $validQuantity;
             $total = null;
             if ($cost !== null && $validQuantity) {
                 if ($cost > intdiv($limit, (int) $quantity)) {
@@ -573,12 +609,12 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
                 'cost_minor' => $cost,
                 'cost' => $cost === null ? '—' : shopper_money_format($cost, $this->data['currency']),
                 'total_minor' => $total,
-                'total' => $total === null ? '—' : shopper_money_format($total, $this->data['currency']),
             ];
         }
 
         return [
             'lines' => $lines,
+            'total_quantity' => $allQuantitiesValid ? $totalQuantity : null,
             'subtotal_minor' => $complete && ! $overLimit ? $subtotal : null,
             'subtotal' => $complete && ! $overLimit ? shopper_money_format($subtotal, $this->data['currency']) : '—',
             'over_limit' => $overLimit,

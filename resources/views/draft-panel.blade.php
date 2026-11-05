@@ -1,8 +1,11 @@
 <x-shopper::slideover-card class="divide-y divide-gray-100 dark:divide-white/10">
     <header class="flex items-start justify-between gap-3 p-4">
         <div>
-            <h2 class="text-lg font-medium text-gray-900 dark:text-white">Edit draft</h2>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $orderNumber }}</p>
+            <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+                {{ $orderNumber === null ? 'New purchase order' : 'Edit draft' }}</h2>
+            @if ($orderNumber !== null)
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ $orderNumber }}</p>
+            @endif
         </div>
         <x-livewire-slide-over::close-icon />
     </header>
