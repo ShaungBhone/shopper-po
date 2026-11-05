@@ -32,7 +32,7 @@ final class Install extends Command
         DB::transaction(function () use ($permissionClass, $guard, $role): void {
             foreach (Access::ABILITIES as $ability) {
                 $permission = $permissionClass::query()->firstOrCreate(
-                    ['name' => $ability.'_purchase_orders', 'guard_name' => $guard],
+                    ['name' => Access::permission($ability), 'guard_name' => $guard],
                     [
                         'group_name' => 'products',
                         'display_name' => ucfirst($ability).' purchase orders',

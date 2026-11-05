@@ -3,9 +3,8 @@
         <x-slot:action>
             @can('add_purchase_orders')
                 <x-filament::button
-                    tag="a"
-                    :href="route('shopper.purchase-orders.create')"
-                    wire:navigate
+                    type="button"
+                    wire:click="$dispatch('openPanel', { component: 'shopper-purchase-orders.form' })"
                 >
                     New purchase order
                 </x-filament::button>

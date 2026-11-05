@@ -1,67 +1,38 @@
 <x-filament::section
+    class="po-draft-details"
     heading="Order details"
     description="Save a draft to prepare the order before placing it."
 >
-    <div class="grid gap-4 sm:grid-cols-2">
-        <label class="grid min-w-0 gap-2 text-sm font-medium">
-            <span>Supplier</span>
-            <x-filament::input.wrapper>
-                <x-filament::input.select
-                    wire:model="data.supplier_id"
-                    required
-                >
-                    <option value="">Select enabled supplier</option>
-                    @foreach ($suppliers as $supplier)
-                        <option value="{{ $supplier->id }}">{{ $supplier->name }}</option>
-                    @endforeach
-                </x-filament::input.select>
-            </x-filament::input.wrapper>
-        </label>
-        <label class="grid min-w-0 gap-2 text-sm font-medium">
-            <span>Destination inventory</span>
-            <x-filament::input.wrapper>
-                <x-filament::input.select
-                    wire:model="data.inventory_id"
-                    required
-                >
-                    <option value="">Select destination</option>
-                    @foreach ($inventories as $inventory)
-                        <option value="{{ $inventory->id }}">{{ $inventory->name }}</option>
-                    @endforeach
-                </x-filament::input.select>
-            </x-filament::input.wrapper>
-        </label>
-        <label class="grid min-w-0 gap-2 text-sm font-medium">
-            <span>Currency</span>
-            <x-filament::input.wrapper>
-                <x-filament::input.select
-                    wire:model.live="data.currency"
-                    required
-                >
-                    <option value="">Select currency</option>
-                    @foreach ($currencies as $currency)
-                        <option value="{{ $currency }}">{{ $currency }}</option>
-                    @endforeach
-                </x-filament::input.select>
-            </x-filament::input.wrapper>
-        </label>
-        <label class="grid min-w-0 gap-2 text-sm font-medium">
-            <span>Expected delivery</span>
-            <x-filament::input.wrapper>
-                <x-filament::input
-                    type="date"
-                    wire:model="data.expected_at"
-                />
-            </x-filament::input.wrapper>
-        </label>
-        <label class="grid min-w-0 gap-2 text-sm font-medium">
-            <span>Supplier reference</span>
-            <x-filament::input.wrapper>
-                <x-filament::input
-                    wire:model="data.supplier_reference"
-                    maxlength="255"
-                />
-            </x-filament::input.wrapper>
-        </label>
-    </div>
+    {{-- Shopper's theme targets Filament's earlier, flat calendar markup. --}}
+    <style>
+        .po-draft-details .fi-fo-date-time-picker-panel {
+            inline-size: min(19rem, calc(100vw - 2rem));
+        }
+
+        .po-draft-details .fi-fo-date-time-picker-calendar {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .po-draft-details .fi-fo-date-time-picker-calendar-header,
+        .po-draft-details .fi-fo-date-time-picker-calendar-week {
+            display: grid;
+            grid-template-columns: repeat(7, minmax(0, 1fr));
+            gap: 0.25rem;
+        }
+
+        .po-draft-details .fi-fo-date-time-picker-calendar-header {
+            margin-block-end: 0.5rem;
+        }
+
+        .po-draft-details .fi-fo-date-time-picker-calendar-description {
+            position: absolute;
+            inline-size: 1px;
+            block-size: 1px;
+            overflow: hidden;
+            clip-path: inset(50%);
+            white-space: nowrap;
+        }
+    </style>
+
+    {{ $this->detailsForm }}
 </x-filament::section>

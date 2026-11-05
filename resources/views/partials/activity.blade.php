@@ -63,15 +63,15 @@
                         aria-hidden="true"
                     >
                         <span
-                            class="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                            class="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-600 dark:bg-primary-900 dark:text-primary-400"
                         >
-                            <x-heroicon-m-check class="size-4" />
+                            <x-heroicon-m-check class="size-3" />
                         </span>
                         @if (!$loop->last || $nextStep)
                             <span
                                 @class([
                                     'flex-1',
-                                    'bg-gray-900 dark:bg-white' => !$loop->last,
+                                    'bg-primary-100 dark:bg-primary-900' => !$loop->last,
                                     'bg-gray-200 dark:bg-gray-700' => $loop->last,
                                 ])
                                 style="inline-size: 2px; margin-block: 2px"
@@ -108,7 +108,7 @@
                     wire:key="po-activity-next"
                 >
                     <span
-                        class="size-6 shrink-0 rounded-full border-2 border-gray-300 dark:border-gray-600"
+                        class="size-5 shrink-0 rounded-full border-2 border-gray-300 dark:border-gray-600"
                         aria-hidden="true"
                     ></span>
                     <div class="min-w-0">

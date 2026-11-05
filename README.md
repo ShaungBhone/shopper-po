@@ -1,47 +1,65 @@
-# shopper-po
+<h1 align="center">Shopper Purchase Orders</h1>
 
-Purchase orders for Laravel Shopper. Create drafts, record deliveries, and correct receipts with an audit trail linked to Shopper’s stock ledger.
+<p align="center">A community add-on for Laravel Shopper that tracks supplier purchase orders and records incoming inventory.</p>
 
-The `1.x` branch targets Shopper 2.12.1, Laravel 12, and PHP 8.3+. A `v3` branch is planned for Shopper v3.
+<p align="center">
+    <a href="https://github.com/ShaungBhone/shopper-po/actions/workflows/tests.yml"><img src="https://github.com/ShaungBhone/shopper-po/actions/workflows/tests.yml/badge.svg?branch=1.x" alt="Tests"></a>
+    <a href="https://packagist.org/packages/shaungbhone/shopper-po"><img src="https://img.shields.io/packagist/v/shaungbhone/shopper-po" alt="Packagist version"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT license"></a>
+</p>
+
+<p align="center">
+    <img src="docs/images/purchase-orders.png" alt="Purchase orders in the Shopper admin, showing order states, receiving progress, and merchandise subtotals">
+</p>
 
 ## Install
 
-Place this checkout at `packages/shopper-po` in your Shopper app. Add this entry to the app’s Composer `repositories`:
+The add-on requires an existing [Laravel Shopper](https://laravelshopper.dev/) installation with Shopper `>=2.12.1 <2.13.0`, Laravel 12, and PHP 8.3 or later.
 
-```json
-{
-  "type": "path",
-  "url": "packages/shopper-po",
-  "options": {
-    "versions": {"shaungbhone/shopper-po": "0.1.0"}
-  }
-}
-```
-
-From the Shopper app, run:
+Run these commands from your Shopper application:
 
 ```sh
-composer require shaungbhone/shopper-po:^0.1
+composer require shaungbhone/shopper-po:^1.0
 php artisan migrate
 php artisan purchase-orders:install
 php artisan optimize:clear
 ```
 
-Enable the supplier feature in `config/shopper/features.php`. Set up an enabled supplier and an inventory location. Assign purchase-order permissions in Shopper’s team settings or pass `--role=your-existing-role` to the install command. Manage currencies in Shopper’s **Settings → Currencies**. New orders use enabled currencies and the store’s default currency; existing drafts retain their saved currency if it is later disabled. Amounts follow Shopper’s currency precision without exchange-rate conversion. No package config file is needed.
+Laravel package discovery registers the add-on with Shopper. The install command creates the purchase order permissions and can be run again safely.
 
-To disable the add-on, set `'purchase-orders' => false` in Shopper’s `config/shopper/addons.php`.
+1. Enable the supplier feature in `config/shopper/features.php` by setting `supplier` to `\Shopper\Enum\FeatureState::Enabled`. Set up an enabled supplier and an inventory location in Shopper.
+2. Assign the purchase order permissions in Shopper's team settings, or run `php artisan purchase-orders:install --role=your-existing-role` to grant them to an existing Shopper role.
+3. Open **Purchasing → Purchase orders** in the Shopper admin.
+
+If you change the supplier feature after clearing the configuration cache, run `php artisan optimize:clear` again.
 
 ## Use
 
-Open **Purchasing → Purchase orders**. Save a draft, mark it ordered, and record deliveries against the outstanding quantities. Rejected units can await replacement or be waived. Correct a receipt to fix a receiving mistake, or close the order to waive the remaining balance. Accepted units update stock.
+Create a draft, choose the products and unit costs, and mark the order as ordered when the supplier confirms it. Record partial or final deliveries against the outstanding quantities. Accepted units increase stock at the order's inventory location and appear in Shopper's stock history.
 
-## Test
+Rejected units can await replacement or be waived. Correct a receipt to fix a receiving mistake and keep an audit trail, or close the order to waive the remaining balance.
+
+New orders use enabled currencies from Shopper's **Settings → Currencies**, with the store currency selected by default. Existing drafts retain their saved currency if it is later disabled. Amounts follow Shopper's currency precision.
+
+## Disable the add-on
+
+Set `'purchase-orders' => false` in `config/shopper/addons.php` and run `php artisan optimize:clear`. If the file does not exist, create it with a PHP configuration array containing that entry. Disabling the add-on removes its screens from the admin and preserves existing purchase orders and receipts.
+
+## Development
 
 From the package checkout:
 
 ```sh
 composer install
+npm ci
 composer test
+npm run format:check
 ```
 
-The default suite uses SQLite. See the [test workflow](.github/workflows/tests.yml) for MySQL concurrency tests and the [purchasing service](src/Actions/Purchasing.php) for integration entry points.
+The default suite uses SQLite. See the [test workflow](.github/workflows/tests.yml) for the MySQL and concurrency test settings.
+
+Shopper documents the integration points in its [add-on guide](https://docs.laravelshopper.dev/v2/addons).
+
+## License
+
+Released under the [MIT license](LICENSE).
