@@ -889,7 +889,27 @@ final class AdminTest extends TestCase
         $this->assertSame(12, $order->items()->firstOrFail()->ordered_quantity);
     }
 
-    public function test_permission_installer_is_idempotent_and_preserves_existing_permissions(): void
+    public function test_migrating_existing_orders_creates_missing_permissions_and_preserves_role_grants(): void
+    {
+        $order = $this->draft();
+        $permission = config('permission.models.permission');
+        $role = config('permission.models.role')::create(['name' => 'procurement', 'guard_name' => 'web']);
+        $receive = $permission::query()->where('name', 'receive_purchase_orders')->firstOrFail();
+        $receive->update(['display_name' => 'Warehouse receiving']);
+        $role->givePermissionTo($receive);
+
+        $this->artisan('migrate:rollback', ['--step' => 1])->assertSuccessful();
+        $permission::query()->where('name', 'cancel_purchase_orders')->firstOrFail()->delete();
+        $this->artisan('migrate')->assertSuccessful();
+
+        $this->assertNotNull($order->fresh());
+        $this->assertSame('Warehouse receiving', $receive->fresh()->display_name);
+        $this->assertTrue($role->fresh()->hasPermissionTo('receive_purchase_orders'));
+        $this->assertFalse($role->fresh()->hasPermissionTo('cancel_purchase_orders'));
+        $this->assertTrue($permission::query()->where('name', 'cancel_purchase_orders')->exists());
+    }
+
+    public function test_legacy_permission_installer_is_idempotent_and_preserves_existing_permissions(): void
     {
         $permission = config('permission.models.permission');
         $permission::query()->create(['name' => 'existing_permission', 'guard_name' => 'web']);

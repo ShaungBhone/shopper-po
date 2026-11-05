@@ -21,14 +21,15 @@ Run these commands from your Shopper application:
 ```sh
 composer require shaungbhone/shopper-po:^1.0
 php artisan migrate
-php artisan purchase-orders:install
 php artisan optimize:clear
 ```
 
-Laravel package discovery registers the add-on with Shopper. The install command creates the purchase order permissions and can be run again safely.
+Laravel package discovery registers the add-on with Shopper. The migrations create any missing purchase order permissions.
+
+If you are installing v1.0.0 specifically, run `php artisan purchase-orders:install` after migrating.
 
 1. Enable the supplier feature in `config/shopper/features.php` by setting `supplier` to `\Shopper\Enum\FeatureState::Enabled`. Set up an enabled supplier and an inventory location in Shopper.
-2. Assign the purchase order permissions in Shopper's team settings, or run `php artisan purchase-orders:install --role=your-existing-role` to grant them to an existing Shopper role.
+2. Assign the purchase order permissions to the appropriate roles in Shopper's team settings.
 3. Open **Purchasing → Purchase orders** in the Shopper admin.
 
 If you change the supplier feature after clearing the configuration cache, run `php artisan optimize:clear` again.

@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace ShopperPurchaseOrders\Console;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
-use ShopperPurchaseOrders\Support\Access;
-use Spatie\Permission\PermissionRegistrar;
+use ShopperPurchaseOrders\Actions\ProvisionPermissions;
 
 final class Install extends Command
 {
@@ -17,7 +15,6 @@ final class Install extends Command
 
     public function handle(): int
     {
-        $permissionClass = config('permission.models.permission');
         $roleClass = config('permission.models.role');
         $guard = config('shopper.auth.guard', 'web');
         $roleName = $this->option('role');
@@ -29,22 +26,7 @@ final class Install extends Command
 
             return self::FAILURE;
         }
-        DB::transaction(function () use ($permissionClass, $guard, $role): void {
-            foreach (Access::ABILITIES as $ability) {
-                $permission = $permissionClass::query()->firstOrCreate(
-                    ['name' => Access::permission($ability), 'guard_name' => $guard],
-                    [
-                        'group_name' => 'products',
-                        'display_name' => ucfirst($ability).' purchase orders',
-                        'can_be_removed' => false,
-                    ],
-                );
-                if ($role) {
-                    $role->givePermissionTo($permission);
-                }
-            }
-        });
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        (new ProvisionPermissions)($role);
         $this->info(
             'Purchase-order permissions are ready.'.
                 ($role

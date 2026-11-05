@@ -111,25 +111,10 @@ abstract class TestCase extends Orchestra
             $table->string('password');
             $table->timestamps();
         });
-        $this->artisan('migrate', ['--force' => true])->run();
+        $this->artisan('migrate', ['--force' => true])->assertSuccessful();
         foreach (['USD', 'EUR', 'JPY'] as $code) {
             Currency::factory()->create(['code' => $code, 'is_enabled' => true]);
         }
-        // Shopper publishes the permission migration during its installer.
-        if (! Schema::hasTable('permissions')) {
-            $file = glob(
-                __DIR__.
-                    '/../vendor/spatie/laravel-permission/database/migrations/*create_permission_tables*',
-            )[0];
-            $migration = require $file;
-            $migration->up();
-            Schema::table('permissions', function (Blueprint $table): void {
-                $table->string('group_name')->nullable();
-                $table->string('display_name')->nullable();
-                $table->boolean('can_be_removed')->default(false);
-            });
-        }
-        $this->artisan('purchase-orders:install')->assertSuccessful();
         $this->user = User::query()->create([
             'last_name' => 'Buyer',
             'email' => 'buyer@example.test',
