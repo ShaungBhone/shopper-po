@@ -34,7 +34,7 @@ use ShopperPurchaseOrders\Models\PurchaseOrder;
 use ShopperPurchaseOrders\Models\PurchaseOrderItem;
 use ShopperPurchaseOrders\Models\ReceiptItem;
 use ShopperPurchaseOrders\Support\Access;
-use Spatie\MediaLibrary\HasMedia;
+use ShopperPurchaseOrders\Support\Catalog;
 
 final class Detail extends AbstractPageComponent implements HasActions, HasSchemas
 {
@@ -325,22 +325,17 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
     private function productThumbnails(Collection $items): array
     {
         $thumbnails = [];
-        $collection = config('shopper.media.storage.thumbnail_collection', 'thumbnail');
+        $catalog = app(Catalog::class);
 
         foreach ($items->groupBy('stockable_kind') as $kind => $lines) {
             $model = config('shopper.models.'.$kind);
-            if (! is_string($model) || ! is_a($model, HasMedia::class, true)) {
-                continue;
-            }
-
             $products = $model::query()
-                ->with('media')
+                ->with($catalog->relations(new $model, $kind, withPrices: false))
                 ->whereKey($lines->pluck('stockable_id')->all())
-                ->get()
-                ->keyBy(fn (HasMedia $product) => $product->getKey());
+                ->get()->keyBy(fn (Model $product) => $product->getKey());
 
             foreach ($lines as $line) {
-                $thumbnails[$line->id] = $products->get($line->stockable_id)?->getFirstMediaUrl($collection);
+                $thumbnails[$line->id] = $catalog->thumbnail($products->get($line->stockable_id), $kind);
             }
         }
 

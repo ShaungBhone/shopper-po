@@ -26,8 +26,7 @@ final class Access
     public static function authorize(string $ability): Authenticatable
     {
         abort_unless(
-            config('purchase-orders.enabled') &&
-                config('shopper.addons.purchase-orders', true) !== false,
+            config('shopper.addons.purchase-orders', true) !== false,
             404,
         );
         abort_unless(

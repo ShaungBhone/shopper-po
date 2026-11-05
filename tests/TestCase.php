@@ -11,6 +11,7 @@ use Orchestra\Testbench\TestCase as Orchestra;
 use Shopper\Cart\CartServiceProvider;
 use Shopper\Core\CoreServiceProvider;
 use Shopper\Core\Enum\ProductType;
+use Shopper\Core\Models\Currency;
 use Shopper\Core\Models\Inventory;
 use Shopper\Core\Models\Product;
 use Shopper\Core\Models\Supplier;
@@ -111,6 +112,9 @@ abstract class TestCase extends Orchestra
             $table->timestamps();
         });
         $this->artisan('migrate', ['--force' => true])->run();
+        foreach (['USD', 'EUR', 'JPY'] as $code) {
+            Currency::factory()->create(['code' => $code, 'is_enabled' => true]);
+        }
         // Shopper publishes the permission migration during its installer.
         if (! Schema::hasTable('permissions')) {
             $file = glob(

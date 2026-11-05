@@ -15,18 +15,20 @@ use ShopperPurchaseOrders\Models\Receipt;
 use ShopperPurchaseOrders\Models\ReceiptCorrection;
 use ShopperPurchaseOrders\Models\ReceiptItem;
 use ShopperPurchaseOrders\Support\Access;
+use ShopperPurchaseOrders\Support\Currencies;
+use ShopperPurchaseOrders\Support\Limits;
 use ShopperPurchaseOrders\Support\Stock;
 
 final class Purchasing
 {
     public function __construct(private Stock $stock) {}
 
-    public static function draftRules(): array
+    public static function draftRules(?string $savedCurrency = null): array
     {
         return [
             'supplier_id' => ['required', 'integer', 'min:1'],
             'inventory_id' => ['required', 'integer', 'min:1'],
-            'currency' => ['required', Rule::in(array_keys(config('purchase-orders.currencies')))],
+            'currency' => ['required', Currencies::rule($savedCurrency)],
             'expected_at' => ['nullable', 'date_format:Y-m-d'],
             'supplier_reference' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:5000'],
@@ -37,13 +39,13 @@ final class Purchasing
                 'required',
                 'integer',
                 'min:1',
-                'max:'.config('purchase-orders.max_quantity'),
+                'max:'.Limits::MAX_QUANTITY,
             ],
             'items.*.unit_cost_minor' => [
                 'required',
                 'integer',
                 'min:0',
-                'max:'.config('purchase-orders.max_total_minor'),
+                'max:'.Limits::MAX_TOTAL_MINOR,
             ],
         ];
     }
@@ -54,7 +56,8 @@ final class Purchasing
         ?int $version = null,
     ): PurchaseOrder {
         $actor = Access::authorize($orderId ? 'edit' : 'add');
-        $data = Validator::make($input, self::draftRules())->validate();
+        $savedCurrency = $orderId ? PurchaseOrder::query()->whereKey($orderId)->value('currency') : null;
+        $data = Validator::make($input, self::draftRules($savedCurrency))->validate();
 
         return DB::transaction(function () use ($data, $actor, $orderId, $version) {
             $order = $orderId
@@ -65,7 +68,7 @@ final class Purchasing
             $lines = [];
             $seen = [];
             $total = 0;
-            $limit = (int) config('purchase-orders.max_total_minor');
+            $limit = Limits::MAX_TOTAL_MINOR;
             foreach ($data['items'] as $line) {
                 $identity = $line['stockable_kind'].':'.$line['stockable_id'];
                 $this->check(
@@ -103,7 +106,7 @@ final class Purchasing
             $attributes = $data;
             unset($attributes['items']);
             $order->fill($attributes);
-            $order->currency_exponent = config('purchase-orders.currencies.'.$data['currency']);
+            $order->currency_exponent = is_no_division_currency($data['currency']) ? 0 : 2;
             $order->supplier_snapshot = $supplier->only(['name', 'email', 'phone', 'contact_name']);
             if (! $orderId) {
                 $order->state = OrderState::Draft;
@@ -180,13 +183,13 @@ final class Purchasing
                     'required',
                     'integer',
                     'min:0',
-                    'max:'.config('purchase-orders.max_quantity'),
+                    'max:'.Limits::MAX_QUANTITY,
                 ],
                 'lines.*.rejected' => [
                     'required',
                     'integer',
                     'min:0',
-                    'max:'.config('purchase-orders.max_quantity'),
+                    'max:'.Limits::MAX_QUANTITY,
                 ],
                 'lines.*.resolution' => ['required', Rule::in(['replace', 'waive'])],
             ],
@@ -565,11 +568,11 @@ final class Purchasing
         Access::authorize('place');
         $this->reason($reason);
         Validator::make(compact('quantity', 'unitCostMinor'), [
-            'quantity' => ['integer', 'min:1', 'max:'.config('purchase-orders.max_quantity')],
+            'quantity' => ['integer', 'min:1', 'max:'.Limits::MAX_QUANTITY],
             'unitCostMinor' => [
                 'integer',
                 'min:0',
-                'max:'.config('purchase-orders.max_total_minor'),
+                'max:'.Limits::MAX_TOTAL_MINOR,
             ],
         ])->validate();
 
@@ -594,7 +597,7 @@ final class Purchasing
             $item->ordered_quantity = $quantity;
             $item->unit_cost_minor = $unitCostMinor;
             $total = 0;
-            $limit = (int) config('purchase-orders.max_total_minor');
+            $limit = Limits::MAX_TOTAL_MINOR;
             foreach ($items as $line) {
                 $this->check(
                     $line->unit_cost_minor <= intdiv($limit - $total, $line->ordered_quantity),

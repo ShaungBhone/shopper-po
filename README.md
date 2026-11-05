@@ -6,14 +6,14 @@ The `1.x` branch targets Shopper 2.12.1, Laravel 12, and PHP 8.3+. A `v3` branch
 
 ## Install
 
-Place this checkout at `packages/shopper-purchase-orders` in your Shopper app. Add this entry to the app’s Composer `repositories`:
+Place this checkout at `packages/shopper-po` in your Shopper app. Add this entry to the app’s Composer `repositories`:
 
 ```json
 {
   "type": "path",
-  "url": "packages/shopper-purchase-orders",
+  "url": "packages/shopper-po",
   "options": {
-    "versions": {"community/shopper-purchase-orders": "0.1.0"}
+    "versions": {"shaungbhone/shopper-po": "0.1.0"}
   }
 }
 ```
@@ -21,14 +21,15 @@ Place this checkout at `packages/shopper-purchase-orders` in your Shopper app. A
 From the Shopper app, run:
 
 ```sh
-composer require community/shopper-purchase-orders:^0.1
-php artisan vendor:publish --tag=purchase-orders-config
+composer require shaungbhone/shopper-po:^0.1
 php artisan migrate
 php artisan purchase-orders:install
 php artisan optimize:clear
 ```
 
-Enable the supplier feature in `config/shopper/features.php`. Set up an enabled supplier and an inventory location. Assign purchase-order permissions in Shopper’s team settings or pass `--role=your-existing-role` to the install command. Configure purchasing currencies in [purchase-orders.php](config/purchase-orders.php).
+Enable the supplier feature in `config/shopper/features.php`. Set up an enabled supplier and an inventory location. Assign purchase-order permissions in Shopper’s team settings or pass `--role=your-existing-role` to the install command. Manage currencies in Shopper’s **Settings → Currencies**. New orders use enabled currencies and the store’s default currency; existing drafts retain their saved currency if it is later disabled. Amounts follow Shopper’s currency precision without exchange-rate conversion. No package config file is needed.
+
+To disable the add-on, set `'purchase-orders' => false` in Shopper’s `config/shopper/addons.php`.
 
 ## Use
 

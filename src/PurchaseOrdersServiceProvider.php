@@ -14,9 +14,8 @@ final class PurchaseOrdersServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->mergeConfigFrom(__DIR__.'/../config/purchase-orders.php', 'purchase-orders');
         $this->app->resolving('shopper', function (ShopperPanel $panel): void {
-            if (config('purchase-orders.enabled') && ! $panel->hasAddon('purchase-orders')) {
+            if (! $panel->hasAddon('purchase-orders')) {
                 $panel->addon(new PurchaseOrdersAddon);
             }
         });
@@ -30,10 +29,6 @@ final class PurchaseOrdersServiceProvider extends ServiceProvider
             'po_receipt_item' => ReceiptItem::class,
             'po_receipt_correction' => ReceiptCorrection::class,
         ]);
-        $this->publishes(
-            [__DIR__.'/../config/purchase-orders.php' => config_path('purchase-orders.php')],
-            'purchase-orders-config',
-        );
         if ($this->app->runningInConsole()) {
             $this->commands([Console\Install::class]);
         }

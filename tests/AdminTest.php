@@ -6,6 +6,7 @@ namespace ShopperPurchaseOrders\Tests;
 
 use Filament\Schemas\Components\Wizard;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Validation\ValidationException;
 use Livewire\Features\SupportLockedProperties\CannotUpdateLockedPropertyException;
 use Livewire\Livewire;
 use Shopper\Components\SlideOverWizard;
@@ -22,6 +23,7 @@ use ShopperPurchaseOrders\Livewire\Index;
 use ShopperPurchaseOrders\Livewire\Receive;
 use ShopperPurchaseOrders\Models\PurchaseOrder;
 use ShopperPurchaseOrders\Support\Catalog;
+use ShopperPurchaseOrders\Support\Limits;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final class AdminTest extends TestCase
@@ -469,8 +471,7 @@ final class AdminTest extends TestCase
             ->assertHasErrors('data.items.0.unit_cost_minor')->assertDispatched('draft-wizard-error', step: 'draftWizard.pricing')
             ->set('data.items.0.unit_cost_minor', '1.25')->set('data.notes', str_repeat('x', 5001))->call('save')
             ->assertHasErrors('notes')->assertDispatched('draft-wizard-error', step: 'draftWizard.review');
-        config(['purchase-orders.max_total_minor' => 1000]);
-        $editor->set('data.notes', '')->set('data.items.0.unit_cost_minor', '9.99')->call('save')
+        $editor->set('data.notes', '')->set('data.items.0.unit_cost_minor', (string) (Limits::MAX_TOTAL_MINOR / 100))->call('save')
             ->assertHasErrors('pricing')->assertDispatched('draft-wizard-error', step: 'draftWizard.pricing');
         $this->assertTrue($editor->instance()->pricingSummary['over_limit']);
         $this->assertNull($editor->instance()->pricingSummary['subtotal_minor']);
@@ -518,7 +519,7 @@ final class AdminTest extends TestCase
     public function test_picker_prefills_matching_purchase_costs_and_saves_usd_and_jpy(): void
     {
         foreach (['USD' => [1250, 12.5], 'JPY' => [1250, 1250]] as $code => [$cost, $display]) {
-            $currency = Currency::factory()->create(['code' => $code]);
+            $currency = Currency::query()->where('code', $code)->firstOrFail();
             $this->product->prices()->create(['currency_id' => $currency->id, 'amount' => 9999, 'cost_amount' => $cost]);
             $editor = Livewire::test(Form::class)
                 ->set('data.supplier_id', $this->supplier->id)
@@ -533,20 +534,59 @@ final class AdminTest extends TestCase
         }
     }
 
-    public function test_picker_can_use_a_purchasing_currency_disabled_on_the_storefront(): void
+    public function test_saved_draft_currency_and_cost_remain_available_after_disabling_currency(): void
     {
-        $currency = Currency::factory()->create(['code' => 'USD', 'is_enabled' => false]);
-        $this->product->prices()->create(['currency_id' => $currency->id, 'amount' => 9999, 'cost_amount' => 1250]);
-        $editor = Livewire::test(Form::class);
-        $options = $editor->instance()->searchProducts();
-        $this->assertStringNotContainsString(shopper_money_format(1250, 'USD'), $options['product:'.$this->product->id]);
-        $editor->call('addProduct', 'product:'.$this->product->id)->assertSet('data.items.0.unit_cost_minor', 12.5);
+        $order = $this->draft(3);
+        $currency = Currency::query()->where('code', 'USD')->firstOrFail();
+        $currency->update(['is_enabled' => false]);
+        $this->product->prices()->create(['currency_id' => $currency->id, 'amount' => 9999, 'cost_amount' => 2000]);
+        $editor = Livewire::test(Form::class, ['orderId' => $order->id])
+            ->assertSet('data.currency', 'USD')
+            ->assertSet('data.items.0.unit_cost_minor', '12.5');
+        $this->assertContains('USD', $editor->instance()->draftOptions['currencies']);
+        $editor->call('save')->assertHasNoErrors();
+        $this->assertSame(1250, $order->items()->sole()->unit_cost_minor);
+        $editor = Livewire::test(Form::class, ['orderId' => $order->id])
+            ->call('removeLine', 0)->call('addProduct', 'product:'.$this->product->id);
+        $this->assertSame(20, array_values($editor->get('data.items'))[0]['unit_cost_minor']);
+        $editor->call('save')->assertHasNoErrors();
+        $this->assertSame(2000, $order->items()->sole()->unit_cost_minor);
+    }
+
+    public function test_new_orders_use_shopper_default_and_enabled_currencies_without_package_config(): void
+    {
+        $this->assertNull(config('purchase-orders'));
+        $jpy = Currency::query()->where('code', 'JPY')->firstOrFail();
+        Setting::query()->updateOrCreate(['key' => 'default_currency_id'], ['value' => $jpy->id]);
+        Currency::query()->where('code', 'EUR')->update(['is_enabled' => false]);
+        $editor = Livewire::test(Form::class)->assertSet('data.currency', 'JPY');
+        $this->assertSame(['JPY', 'USD'], $editor->instance()->draftOptions['currencies']);
+        $editor->set('data.currency', 'EUR')->call('addProduct', 'product:'.$this->product->id)
+            ->assertHasErrors('currency')->assertSet('data.items', []);
+        $editor->set('data.currency', 'ZZZ')->call('addProduct', 'product:'.$this->product->id)
+            ->assertHasErrors('currency')->assertSet('data.items', []);
+        $data = $this->draftData();
+        $data['currency'] = 'EUR';
+        $this->expectException(ValidationException::class);
+        $this->purchasing->saveDraft($data);
+    }
+
+    public function test_currency_defaults_to_an_enabled_option_or_requires_selection_if_none_exist(): void
+    {
+        Currency::query()->where('code', 'USD')->update(['is_enabled' => false]);
+        Livewire::test(Form::class)->assertSet('data.currency', 'EUR');
+        Currency::query()->update(['is_enabled' => false]);
+        Livewire::test(Form::class)->assertSet('data.currency', '')
+            ->set('data.supplier_id', $this->supplier->id)
+            ->set('data.inventory_id', $this->inventory->id)
+            ->call('save')->assertHasErrors('currency')
+            ->assertDispatched('draft-wizard-error', step: 'draftWizard.details');
     }
 
     public function test_picker_missing_cost_is_required_and_zero_is_preserved(): void
     {
-        $euro = Currency::factory()->create(['code' => 'EUR']);
-        $usd = Currency::factory()->create(['code' => 'USD']);
+        $euro = Currency::query()->where('code', 'EUR')->firstOrFail();
+        $usd = Currency::query()->where('code', 'USD')->firstOrFail();
         $this->product->prices()->create(['currency_id' => $euro->id, 'amount' => 9000, 'cost_amount' => 400]);
         $this->product->prices()->create(['currency_id' => $usd->id, 'amount' => 9000, 'cost_amount' => null]);
         $editor = Livewire::test(Form::class)
@@ -611,8 +651,8 @@ final class AdminTest extends TestCase
             ->set('data.items.0.unit_cost_minor', '-1')
             ->call('refreshPricing', 0)->assertHasErrors('data.items.0.unit_cost_minor')
             ->set('data.items.0.unit_cost_minor', '18.25')->call('refreshPricing', 0)->assertHasNoErrors()
-            ->set('data.items.0.ordered_quantity', config('purchase-orders.max_quantity'))
-            ->call('changeQuantity', 0, 1)->assertSet('data.items.0.ordered_quantity', config('purchase-orders.max_quantity'))
+            ->set('data.items.0.ordered_quantity', Limits::MAX_QUANTITY)
+            ->call('changeQuantity', 0, 1)->assertSet('data.items.0.ordered_quantity', Limits::MAX_QUANTITY)
             ->set('data.items.0.ordered_quantity', 2)
             ->call('save')->assertHasNoErrors();
         $this->assertSame(1825, $order->items()->sole()->unit_cost_minor);
@@ -628,6 +668,13 @@ final class AdminTest extends TestCase
         ]);
         $variant = ProductVariant::factory()->create(['product_id' => $this->product->id, 'name' => 'Blue']);
         $this->assertSame($media->getUrl(), app(Catalog::class)->thumbnail($variant, 'variant'));
+        $data = $this->draftData();
+        $data['supplier_reference'] = 'REF-REVIEW-123';
+        $data['items'][0]['stockable_kind'] = 'variant';
+        $data['items'][0]['stockable_id'] = $variant->id;
+        $variantOrder = $this->purchasing->saveDraft($data);
+        Livewire::test(Detail::class, ['orderId' => $variantOrder->id])->assertSee($media->getUrl());
+        Livewire::test(Form::class, ['orderId' => $variantOrder->id])->assertSee('REF-REVIEW-123');
         $variantMedia = $variant->media()->create([
             'collection_name' => config('shopper.media.storage.thumbnail_collection'), 'name' => 'Variant thumbnail',
             'file_name' => 'variant.jpg', 'mime_type' => 'image/jpeg', 'disk' => 'public', 'conversions_disk' => 'public',
@@ -635,8 +682,9 @@ final class AdminTest extends TestCase
         ]);
         $variant->unsetRelation('media');
         $this->assertSame($variantMedia->getUrl(), app(Catalog::class)->thumbnail($variant, 'variant'));
+        Livewire::test(Detail::class, ['orderId' => $variantOrder->id])->assertSee($variantMedia->getUrl());
 
-        $currency = Currency::factory()->create(['code' => 'USD']);
+        $currency = Currency::query()->where('code', 'USD')->firstOrFail();
         $order = $this->draft();
         $this->product->prices()->create(['currency_id' => $currency->id, 'amount' => 9999, 'cost_amount' => 8000]);
         Livewire::test(Form::class, ['orderId' => $order->id])->assertSet('data.items.0.unit_cost_minor', 12.5)
@@ -836,7 +884,7 @@ final class AdminTest extends TestCase
     public function test_disabled_addon_rejects_actions_even_if_a_page_is_already_open(): void
     {
         $order = $this->ordered();
-        config(['purchase-orders.enabled' => false]);
+        config(['shopper.addons.purchase-orders' => false]);
         $this->expectException(NotFoundHttpException::class);
         $this->purchasing->receive($order->id, $order->version, 'a', $this->receiveLine($order, 1));
     }

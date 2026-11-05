@@ -1,5 +1,5 @@
 {
-  "name": "community/shopper-purchase-orders",
+  "name": "shaungbhone/shopper-po",
   "description": "Purchase orders and auditable receiving for Laravel Shopper 2.12.",
   "type": "library",
   "license": "MIT",

@@ -22,7 +22,6 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\HtmlString;
-use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Laravelcm\LivewireSlideOvers\SlideOverComponent;
 use Livewire\Attributes\Computed;
@@ -37,6 +36,8 @@ use ShopperPurchaseOrders\Enums\OrderState;
 use ShopperPurchaseOrders\Models\PurchaseOrder;
 use ShopperPurchaseOrders\Support\Access;
 use ShopperPurchaseOrders\Support\Catalog;
+use ShopperPurchaseOrders\Support\Currencies;
+use ShopperPurchaseOrders\Support\Limits;
 use ShopperPurchaseOrders\Support\Stock;
 
 #[Layout(name: 'shopper::components.layouts.app')]
@@ -61,6 +62,9 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
 
     #[Locked]
     public ?string $orderNumber = null;
+
+    #[Locked]
+    public ?string $savedCurrency = null;
 
     public array $data = [
         'supplier_id' => '',
@@ -100,6 +104,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
             abort_unless($order->state === OrderState::Draft, 403);
             $this->version = $order->version;
             $this->orderNumber = $order->number;
+            $this->savedCurrency = $order->currency;
             $this->data = array_merge(
                 $this->data,
                 $order->only([
@@ -121,6 +126,12 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
                     ]),
                 )
                 ->all();
+        }
+
+        if ($orderId === null) {
+            $currencies = Currencies::codes();
+            $defaultCurrency = shopper_currency();
+            $this->data['currency'] = in_array($defaultCurrency, $currencies, true) ? $defaultCurrency : ($currencies[0] ?? '');
         }
 
         $this->costsForm->fill($this->data);
@@ -167,7 +178,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
         $this->productSelection = null;
         Validator::make(['productSelection' => $identity, 'currency' => $this->data['currency']], [
             'productSelection' => ['required', 'regex:/^(product|variant):[1-9][0-9]*$/'],
-            'currency' => ['required', Rule::in(array_keys(config('purchase-orders.currencies')))],
+            'currency' => ['required', Currencies::rule($this->savedCurrency)],
         ])->validate();
         if (in_array($identity, $this->lineIdentities(), true)) {
             throw ValidationException::withMessages(['productSelection' => 'This product is already in the order.']);
@@ -204,7 +215,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
         $path = "data.items.{$index}.ordered_quantity";
         $this->validateOnly($path, [$path => Purchasing::draftRules()['items.*.ordered_quantity']]);
         $quantity = (int) $this->data['items'][$index]['ordered_quantity'];
-        $this->data['items'][$index]['ordered_quantity'] = max(1, min((int) config('purchase-orders.max_quantity'), $quantity + $delta));
+        $this->data['items'][$index]['ordered_quantity'] = max(1, min(Limits::MAX_QUANTITY, $quantity + $delta));
     }
 
     public function refreshPricing(int $index): void
@@ -244,7 +255,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
                     ->currencyMask(precision: $precision)
                     ->suffix($currency)
                     ->minValue(0)
-                    ->maxValue(config('purchase-orders.max_total_minor') / (10 ** $precision))
+                    ->maxValue(Limits::MAX_TOTAL_MINOR / (10 ** $precision))
                     ->rules($this->costRules())
                     ->live(false)
                     ->extraInputAttributes(['x-on:blur' => "updateInput(); \$wire.refreshPricing({$index})"]),
@@ -308,7 +319,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
             Step::make('Products')->key('products')->icon('heroicon-o-cube')
                 ->afterValidation(fn () => $this->validateDraftStep('products'))
                 ->schema([
-                    SchemaView::make('purchase-orders::partials.draft-wizard-products')
+                    SchemaView::make('purchase-orders::partials.draft-lines')
                         ->viewData(fn (): array => ['data' => $this->data, 'lines' => $this->draftLines()]),
                 ]),
             Step::make('Pricing')->key('pricing')->icon('heroicon-o-currency-dollar')
@@ -339,7 +350,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
         Access::authorize($this->orderId ? 'edit' : 'add');
         try {
             match ($step) {
-                'details' => Validator::make($this->data, Arr::only(Purchasing::draftRules(), self::DETAILS_FIELDS))->validate(),
+                'details' => Validator::make($this->data, Arr::only(Purchasing::draftRules($this->savedCurrency), self::DETAILS_FIELDS))->validate(),
                 'products' => $this->validateProducts(),
                 'pricing' => $this->validatePricing(),
             };
@@ -408,7 +419,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
     {
         Access::authorize($this->orderId ? 'edit' : 'add');
         try {
-            Validator::make($this->data, Arr::only(Purchasing::draftRules(), self::DETAILS_FIELDS))->validate();
+            Validator::make($this->data, Arr::only(Purchasing::draftRules($this->savedCurrency), self::DETAILS_FIELDS))->validate();
             $order = app(Purchasing::class)->saveDraft($this->validatePricing(), $this->orderId, $this->version);
         } catch (ValidationException $exception) {
             $this->showValidationError(array_key_first($exception->errors()));
@@ -446,6 +457,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
         $inventory = config('shopper.models.inventory');
 
         return [
+            'currencies' => Currencies::codes($this->savedCurrency),
             'suppliers' => $supplier::query()->where('is_enabled', true)->orderBy('name')->get(),
             'inventories' => $inventory::query()->orderBy('name')->get(),
         ];
@@ -516,7 +528,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
     {
         $precision = is_no_division_currency($this->data['currency']) ? 0 : 2;
 
-        return ['required', 'numeric', 'min:0', 'max:'.(config('purchase-orders.max_total_minor') / (10 ** $precision)), 'decimal:0,'.$precision];
+        return ['required', 'numeric', 'min:0', 'max:'.(Limits::MAX_TOTAL_MINOR / (10 ** $precision)), 'decimal:0,'.$precision];
     }
 
     private function previewCost(mixed $amount): ?int
@@ -533,7 +545,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
     #[Computed]
     public function pricingSummary(): array
     {
-        $limit = (int) config('purchase-orders.max_total_minor');
+        $limit = Limits::MAX_TOTAL_MINOR;
         $subtotal = 0;
         $complete = count($this->data['items']) > 0;
         $overLimit = false;

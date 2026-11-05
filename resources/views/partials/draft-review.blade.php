@@ -20,6 +20,10 @@
                 <dd class="mt-1 font-medium">{{ $data['currency'] }}</dd>
             </div>
             <div>
+                <dt class="text-gray-500 dark:text-gray-400">Supplier reference</dt>
+                <dd class="mt-1 font-medium">{{ $data['supplier_reference'] ?? '' ?: '—' }}</dd>
+            </div>
+            <div>
                 <dt class="text-gray-500 dark:text-gray-400">Product lines</dt>
                 <dd class="mt-1 font-medium">{{ count($data['items']) }}</dd>
             </div>

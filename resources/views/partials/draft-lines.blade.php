@@ -69,7 +69,7 @@
                             <input
                                 type="number"
                                 min="1"
-                                max="{{ config('purchase-orders.max_quantity') }}"
+                                max="{{ \ShopperPurchaseOrders\Support\Limits::MAX_QUANTITY }}"
                                 step="1"
                                 class="w-12 rounded border-0 bg-transparent p-1 text-center text-sm focus:ring-2 focus:ring-primary-500"
                                 aria-label="Quantity for {{ $line['name'] }}"
@@ -83,7 +83,7 @@
                                 :label="'Increase quantity for ' . $line['name']"
                                 wire:click="changeQuantity({{ $index }}, 1)"
                                 :disabled="(int) ($data['items'][$index]['ordered_quantity'] ??
-                                    0) >= (int) config('purchase-orders.max_quantity')"
+                                    0) >= \ShopperPurchaseOrders\Support\Limits::MAX_QUANTITY"
                             />
                         </div>
                         @error($quantityPath)
