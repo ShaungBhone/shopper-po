@@ -34,7 +34,7 @@
         <label class="grid min-w-0 gap-2 text-sm font-medium">
             <span>Currency</span>
             <x-filament::input.wrapper>
-                <x-filament::input.select wire:model="data.currency">
+                <x-filament::input.select wire:model.live="data.currency">
                     @foreach (array_keys(config('purchase-orders.currencies')) as $currency)
                         <option value="{{ $currency }}">{{ $currency }}</option>
                     @endforeach

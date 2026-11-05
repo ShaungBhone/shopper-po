@@ -4,16 +4,16 @@
             <div>
                 <dt class="text-gray-500 dark:text-gray-400">Supplier</dt>
                 <dd class="mt-1 font-medium">
-                    {{ $suppliers->find($data['supplier_id'])?->name ?? '—' }}</dd>
+                    {{ $suppliers->find($data['supplier_id'] ?? null)?->name ?? '—' }}</dd>
             </div>
             <div>
                 <dt class="text-gray-500 dark:text-gray-400">Destination inventory</dt>
                 <dd class="mt-1 font-medium">
-                    {{ $inventories->find($data['inventory_id'])?->name ?? '—' }}</dd>
+                    {{ $inventories->find($data['inventory_id'] ?? null)?->name ?? '—' }}</dd>
             </div>
             <div>
                 <dt class="text-gray-500 dark:text-gray-400">Expected delivery</dt>
-                <dd class="mt-1 font-medium">{{ $data['expected_at'] ?: '—' }}</dd>
+                <dd class="mt-1 font-medium">{{ $data['expected_at'] ?? '—' }}</dd>
             </div>
             <div>
                 <dt class="text-gray-500 dark:text-gray-400">Currency</dt>
@@ -25,6 +25,8 @@
             </div>
         </dl>
     </x-shopper::card>
+
+    @include('purchase-orders::partials.draft-pricing', ['readOnly' => true])
 
     @include('purchase-orders::partials.draft-notes')
 </div>

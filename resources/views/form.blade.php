@@ -6,22 +6,7 @@
             title="Purchase orders"
         />
     </x-shopper::breadcrumb>
-
-    <x-shopper::heading :title="$choosingProducts ? 'Add products' : 'New purchase order'" />
+    <x-shopper::heading title="New purchase order" />
     @include('purchase-orders::partials.messages')
-
-    <form
-        wire:submit="{{ $choosingProducts ? 'addSelectedProducts' : 'save' }}"
-        class="space-y-6"
-    >
-        @if ($choosingProducts)
-            @include('purchase-orders::partials.draft-catalog')
-        @else
-            @include('purchase-orders::partials.draft-fields')
-        @endif
-
-        <div class="flex flex-wrap justify-end gap-3">
-            @include('purchase-orders::partials.draft-actions')
-        </div>
-    </form>
+    {{ $this->draftWizard }}
 </x-shopper::container>

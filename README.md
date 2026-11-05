@@ -2,7 +2,7 @@
 
 Purchase orders for Laravel Shopper. Create drafts, record deliveries, and correct receipts with an audit trail linked to Shopper’s stock ledger.
 
-The `v2` branch targets Shopper 2.12.1, Laravel 12, and PHP 8.3+. A `v3` branch is planned for Shopper v3.
+The `1.x` branch targets Shopper 2.12.1, Laravel 12, and PHP 8.3+. A `v3` branch is planned for Shopper v3.
 
 ## Install
 

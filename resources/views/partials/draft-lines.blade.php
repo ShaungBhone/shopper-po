@@ -1,22 +1,14 @@
-<x-shopper::card>
-    <x-slot:title>
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <x-shopper::section-heading title="Order lines" />
-            <x-filament::button
-                type="button"
-                color="gray"
-                icon="heroicon-m-plus"
-                wire:click="openCatalog"
-            >
-                Add products
-            </x-filament::button>
+<x-filament::section heading="Order lines">
+    <div class="space-y-4">
+        <div
+            wire:key="product-picker-{{ $data['currency'] }}-{{ md5(json_encode(array_map(fn($item) => $item['stockable_kind'] . ':' . $item['stockable_id'], $data['items']))) }}">
+            {{ $this->productPicker }}
         </div>
-    </x-slot:title>
+        @if (count($data['items']) >= 100)
+            <p class="text-sm text-gray-500 dark:text-gray-400">Maximum of 100 product lines reached.
+            </p>
+        @endif
 
-    <div
-        class="space-y-4"
-        @if ($returningFromCatalog) x-data x-init="$el.closest('.sh-card').scrollIntoView({ block: 'start' })" @endif
-    >
         @if ($data['items'])
             <div class="flex flex-wrap items-center justify-between gap-3">
                 <p class="text-sm text-gray-500 dark:text-gray-400">
@@ -33,43 +25,30 @@
             </div>
         @endif
 
-        <ul class="divide-y divide-gray-200 dark:divide-white/10">
+        <ul class="space-y-3">
             @forelse ($lines as $line)
-                @php($index = $line['index'])
+                @php
+                    $index = $line['index'];
+                    $quantityPath = "data.items.{$index}.ordered_quantity";
+                @endphp
                 <li
-                    class="grid gap-3 py-3 sm:grid-cols-2 sm:items-center"
-                    wire:key="draft-line-{{ $index }}"
+                    class="flex items-start gap-3 rounded-lg border border-gray-200 p-3 dark:border-white/10"
+                    wire:key="draft-line-{{ $index }}-{{ $data['currency'] }}"
                 >
-                    <div class="min-w-0 text-sm">
-                        <p class="break-words font-medium">{{ $line['name'] }}</p>
+                    <img
+                        src="{{ $line['thumbnail'] }}"
+                        alt=""
+                        class="size-10 shrink-0 rounded object-cover"
+                        loading="lazy"
+                    />
+                    <div class="min-w-0 flex-1">
+                        <p class="break-words text-sm font-medium">{{ $line['name'] }}</p>
                         @if ($line['sku'])
-                            <p class="break-all text-gray-500 dark:text-gray-400">
+                            <p class="break-all text-xs text-gray-500 dark:text-gray-400">
                                 {{ $line['sku'] }}</p>
                         @endif
                     </div>
-                    <div class="flex items-end gap-2">
-                        <label class="grid min-w-0 flex-1 gap-2 text-sm font-medium">
-                            <span>Quantity</span>
-                            <x-filament::input.wrapper>
-                                <x-filament::input
-                                    type="number"
-                                    min="1"
-                                    required
-                                    wire:model="data.items.{{ $index }}.ordered_quantity"
-                                />
-                            </x-filament::input.wrapper>
-                        </label>
-                        <label class="grid min-w-0 flex-1 gap-2 text-sm font-medium">
-                            <span>Unit cost</span>
-                            <x-filament::input.wrapper>
-                                <x-filament::input
-                                    type="number"
-                                    min="0"
-                                    required
-                                    wire:model="data.items.{{ $index }}.unit_cost_minor"
-                                />
-                            </x-filament::input.wrapper>
-                        </label>
+                    <div class="flex shrink-0 flex-col items-end gap-3">
                         <x-filament::icon-button
                             type="button"
                             color="gray"
@@ -77,11 +56,49 @@
                             :label="'Remove ' . $line['name']"
                             wire:click="removeLine({{ $index }})"
                         />
+                        <div class="flex items-center gap-1">
+                            <x-filament::icon-button
+                                type="button"
+                                color="gray"
+                                icon="heroicon-m-minus"
+                                :label="'Decrease quantity for ' . $line['name']"
+                                wire:click="changeQuantity({{ $index }}, -1)"
+                                :disabled="(int) ($data['items'][$index]['ordered_quantity'] ??
+                                    0) <= 1"
+                            />
+                            <input
+                                type="number"
+                                min="1"
+                                max="{{ config('purchase-orders.max_quantity') }}"
+                                step="1"
+                                class="w-12 rounded border-0 bg-transparent p-1 text-center text-sm focus:ring-2 focus:ring-primary-500"
+                                aria-label="Quantity for {{ $line['name'] }}"
+                                wire:model.live.debounce.300ms="{{ $quantityPath }}"
+                                wire:keydown.enter.prevent
+                            />
+                            <x-filament::icon-button
+                                type="button"
+                                color="gray"
+                                icon="heroicon-m-plus"
+                                :label="'Increase quantity for ' . $line['name']"
+                                wire:click="changeQuantity({{ $index }}, 1)"
+                                :disabled="(int) ($data['items'][$index]['ordered_quantity'] ??
+                                    0) >= (int) config('purchase-orders.max_quantity')"
+                            />
+                        </div>
+                        @error($quantityPath)
+                            <p class="max-w-40 text-xs text-danger-600 dark:text-danger-400">
+                                {{ $message }}</p>
+                        @enderror
+                        @error('items.' . $index . '.ordered_quantity')
+                            <p class="max-w-40 text-xs text-danger-600 dark:text-danger-400">
+                                {{ $message }}</p>
+                        @enderror
                     </div>
                 </li>
             @empty
                 <li class="py-3 text-sm text-gray-500 dark:text-gray-400">
-                    {{ $data['items'] ? 'No order lines match your search.' : 'Add products or variants from the catalog.' }}
+                    {{ $data['items'] ? 'No order lines match your search.' : 'Search for a product to add your first order line.' }}
                 </li>
             @endforelse
         </ul>
@@ -89,11 +106,5 @@
         @if ($lines->hasPages())
             <x-filament::pagination :paginator="$lines" />
         @endif
-
-        @if ($data['items'])
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-                Enter unit costs in minor units. For USD, 1250 is $12.50.
-            </p>
-        @endif
     </div>
-</x-shopper::card>
+</x-filament::section>

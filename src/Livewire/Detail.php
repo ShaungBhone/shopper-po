@@ -25,6 +25,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 use Livewire\WithPagination;
+use Shopper\Components\Form\MoneyInput;
 use Shopper\Core\Enum\OrderStatus;
 use Shopper\Livewire\Pages\AbstractPageComponent;
 use ShopperPurchaseOrders\Actions\Purchasing;
@@ -195,7 +196,13 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
             ->modalDescription('Each existing receipt keeps its original unit cost.')
             ->schema([
                 TextInput::make('quantity')->label('Total ordered quantity')->integer()->minValue(1)->required(),
-                TextInput::make('unit_cost_minor')->label('Unit cost (minor units)')->integer()->minValue(0)->required(),
+                MoneyInput::make('unit_cost_minor')
+                    ->label('Unit cost')
+                    ->currency(fn (): string => $this->order->currency)
+                    ->suffix(fn (): string => $this->order->currency)
+                    ->minValue(0)
+                    ->rules(fn (): array => ['decimal:0,'.(is_no_division_currency($this->order->currency) ? 0 : 2)])
+                    ->required(),
                 $this->reasonField(),
             ])
             ->fillForm(function (array $arguments): array {
