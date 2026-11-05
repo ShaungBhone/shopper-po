@@ -389,7 +389,7 @@ final class PurchasingTest extends TestCase
     public function test_permission_revocation_prevents_mutation(): void
     {
         $order = $this->ordered();
-        $this->user->revokePermissionTo('receive_purchase_orders');
+        $this->user->revokePermissionTo('edit_orders');
         $this->expectException(AuthorizationException::class);
         $this->purchasing->receive($order->id, $order->version, 'a', $this->receiveLine($order, 2));
     }

@@ -15,7 +15,7 @@ final class PurchasingSidebar extends AbstractAdminSidebar
     public function extendWith(Menu $menu): Menu
     {
         $allowed =
-            Feature::enabled('supplier') && ($this->user?->can('browse_purchase_orders') ?? false);
+            Feature::enabled('supplier') && ($this->user?->can('browse_orders') ?? false);
         $menu->group('Purchasing', function (Group $group) use ($allowed): void {
             $group->weight(5);
             $group->setAuthorized($allowed);

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Create purchase order permissions during `php artisan migrate` so setup needs no separate installer command.
+- Share Shopper's built-in Orders permissions across sales and purchase orders. Remove the separate permission installer.
 
 ## 1.0.0
 

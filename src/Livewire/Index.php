@@ -36,14 +36,14 @@ final class Index extends AbstractPageComponent implements HasActions, HasSchema
 
     public function mount(): void
     {
-        Access::authorize('browse');
+        Access::authorize('browse_orders');
         $this->loadDefaultActiveTab();
     }
 
     /** @return array<string, Tab> */
     public function getTabs(): array
     {
-        Access::authorize('browse');
+        Access::authorize('browse_orders');
 
         $counts = PurchaseOrder::query()
             ->toBase()
@@ -75,7 +75,7 @@ final class Index extends AbstractPageComponent implements HasActions, HasSchema
 
     public function table(Table $table): Table
     {
-        $canRead = Access::authorize('browse')->can('read_purchase_orders');
+        $canRead = Access::authorize('browse_orders')->can('read_orders');
 
         return $table
             ->query(PurchaseOrder::query()->with('items'))
@@ -190,7 +190,7 @@ final class Index extends AbstractPageComponent implements HasActions, HasSchema
 
     public function render(): View
     {
-        Access::authorize('browse');
+        Access::authorize('browse_orders');
 
         return view('purchase-orders::index')->title('Purchase orders');
     }

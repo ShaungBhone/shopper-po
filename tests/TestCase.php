@@ -15,6 +15,7 @@ use Shopper\Core\Models\Currency;
 use Shopper\Core\Models\Inventory;
 use Shopper\Core\Models\Product;
 use Shopper\Core\Models\Supplier;
+use Shopper\Database\Seeders\PermissionsTableSeeder;
 use Shopper\Enum\FeatureState;
 use Shopper\Payment\PaymentServiceProvider;
 use Shopper\Shipping\ShippingServiceProvider;
@@ -24,7 +25,6 @@ use ShopperPurchaseOrders\Actions\Purchasing;
 use ShopperPurchaseOrders\Models\PurchaseOrder;
 use ShopperPurchaseOrders\PurchaseOrdersServiceProvider;
 use ShopperPurchaseOrders\Tests\Fixtures\User;
-use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionServiceProvider;
 
 abstract class TestCase extends Orchestra
@@ -112,6 +112,7 @@ abstract class TestCase extends Orchestra
             $table->timestamps();
         });
         $this->artisan('migrate', ['--force' => true])->assertSuccessful();
+        $this->seed(PermissionsTableSeeder::class);
         foreach (['USD', 'EUR', 'JPY'] as $code) {
             Currency::factory()->create(['code' => $code, 'is_enabled' => true]);
         }
@@ -120,7 +121,7 @@ abstract class TestCase extends Orchestra
             'email' => 'buyer@example.test',
             'password' => bcrypt('testing'),
         ]);
-        $this->user->givePermissionTo(Permission::all());
+        $this->user->givePermissionTo('browse_orders', 'read_orders', 'add_orders', 'edit_orders');
         $this->actingAs($this->user, config('shopper.auth.guard'));
         $this->supplier = Supplier::factory()->create(['is_enabled' => true]);
         $this->inventory = Inventory::factory()->create();

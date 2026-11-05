@@ -29,7 +29,7 @@ final class Receive extends AbstractPageComponent
 
     public function mount(int $orderId): void
     {
-        Access::authorize('receive');
+        Access::authorize('edit_orders');
         $order = PurchaseOrder::query()->with('items')->findOrFail($orderId);
         abort_unless($order->state === OrderState::Ordered, 403);
         $this->orderId = $orderId;
@@ -77,7 +77,7 @@ final class Receive extends AbstractPageComponent
 
     public function render(): mixed
     {
-        Access::authorize('receive');
+        Access::authorize('edit_orders');
         $order = PurchaseOrder::query()->with('items')->findOrFail($this->orderId);
         $class = config('shopper.models.inventory');
 
