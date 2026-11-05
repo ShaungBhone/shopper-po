@@ -71,7 +71,7 @@
                     @endif
                     {{ $this->cancelOrderAction }}
                     @if ($order->state->value === 'draft')
-                        @can('edit_purchase_orders')
+                        @can('edit_orders')
                             <x-filament::button
                                 type="button"
                                 color="gray"
@@ -138,7 +138,7 @@
                             {{ $this->placeAction }}
                         </div>
                     @elseif ($order->state->value === 'ordered' && $order->outstandingQuantity() > 0)
-                        @can('receive_purchase_orders')
+                        @can('edit_orders')
                             <div class="mt-5 flex items-center justify-end">
                                 <x-filament::button
                                     tag="a"

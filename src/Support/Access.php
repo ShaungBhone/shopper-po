@@ -11,30 +11,7 @@ use Shopper\Feature;
 
 final class Access
 {
-    public const ABILITIES = [
-        'browse',
-        'read',
-        'add',
-        'edit',
-        'place',
-        'receive',
-        'correct',
-        'close',
-        'cancel',
-    ];
-
-    /** @return list<string> */
-    public static function permissions(): array
-    {
-        return array_map(self::permission(...), self::ABILITIES);
-    }
-
-    public static function permission(string $ability): string
-    {
-        return $ability.'_purchase_orders';
-    }
-
-    public static function authorize(string $ability): Authenticatable
+    public static function authorize(string $permission): Authenticatable
     {
         abort_unless(
             config('shopper.addons.purchase-orders', true) !== false,
@@ -47,9 +24,9 @@ final class Access
         );
         $user = Auth::guard(config('shopper.auth.guard'))->user();
         abort_unless($user, 403);
-        Gate::forUser($user)->authorize(self::permission($ability));
-        if (! in_array($ability, ['browse', 'read', 'add'], true)) {
-            Gate::forUser($user)->authorize('read_purchase_orders');
+        Gate::forUser($user)->authorize($permission);
+        if ($permission === 'edit_orders') {
+            Gate::forUser($user)->authorize('read_orders');
         }
 
         return $user;

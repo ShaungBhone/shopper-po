@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Share Shopper's built-in Orders permissions across sales and purchase orders. Remove the separate permission installer.
+
 ## 1.0.0
 
 - Add supplier purchase orders to the Shopper admin, with create and edit slideovers, a live pricing summary, and an activity timeline.

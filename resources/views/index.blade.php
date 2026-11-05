@@ -1,7 +1,7 @@
 <x-shopper::container class="py-5">
     <x-shopper::heading title="Purchase orders">
         <x-slot:action>
-            @can('add_purchase_orders')
+            @can('add_orders')
                 <x-filament::button
                     type="button"
                     wire:click="$dispatch('openPanel', { component: 'shopper-purchase-orders.form' })"

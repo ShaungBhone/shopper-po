@@ -55,7 +55,7 @@ final class Purchasing
         ?int $orderId = null,
         ?int $version = null,
     ): PurchaseOrder {
-        $actor = Access::authorize($orderId ? 'edit' : 'add');
+        $actor = Access::authorize($orderId ? 'edit_orders' : 'add_orders');
         $savedCurrency = $orderId ? PurchaseOrder::query()->whereKey($orderId)->value('currency') : null;
         $data = Validator::make($input, self::draftRules($savedCurrency))->validate();
 
@@ -135,7 +135,7 @@ final class Purchasing
 
     public function place(int $id, int $version): PurchaseOrder
     {
-        $actor = Access::authorize('place');
+        $actor = Access::authorize('edit_orders');
 
         return DB::transaction(function () use ($id, $version, $actor) {
             $order = $this->locked($id, $version, [OrderState::Draft]);
@@ -171,7 +171,7 @@ final class Purchasing
         array $lines,
         ?string $notes = null,
     ): Receipt {
-        $actor = Access::authorize('receive');
+        $actor = Access::authorize('edit_orders');
         $data = Validator::make(
             ['request_key' => $requestKey, 'lines' => $lines, 'notes' => $notes],
             [
@@ -327,7 +327,7 @@ final class Purchasing
         int $rejected,
         string $reason,
     ): ReceiptCorrection {
-        $actor = Access::authorize('correct');
+        $actor = Access::authorize('edit_orders');
         Validator::make(compact('key', 'accepted', 'rejected', 'reason'), [
             'key' => ['required', 'string', 'max:100'],
             'accepted' => ['integer', 'min:0'],
@@ -425,7 +425,7 @@ final class Purchasing
 
     public function close(int $id, int $version, string $reason, ?int $itemId = null): PurchaseOrder
     {
-        $actor = Access::authorize('close');
+        $actor = Access::authorize('edit_orders');
         $this->reason($reason);
 
         return DB::transaction(function () use ($id, $version, $reason, $itemId, $actor) {
@@ -464,7 +464,7 @@ final class Purchasing
 
     public function reopen(int $id, int $version, string $reason): PurchaseOrder
     {
-        $actor = Access::authorize('close');
+        $actor = Access::authorize('edit_orders');
         $this->reason($reason);
 
         return DB::transaction(function () use ($id, $version, $reason, $actor) {
@@ -482,7 +482,7 @@ final class Purchasing
 
     public function restoreLine(int $id, int $version, int $itemId, string $reason): PurchaseOrder
     {
-        $actor = Access::authorize('close');
+        $actor = Access::authorize('edit_orders');
         $this->reason($reason);
 
         return DB::transaction(function () use ($id, $version, $itemId, $reason, $actor) {
@@ -508,7 +508,7 @@ final class Purchasing
 
     public function cancel(int $id, int $version, string $reason): PurchaseOrder
     {
-        $actor = Access::authorize('cancel');
+        $actor = Access::authorize('edit_orders');
         $this->reason($reason);
 
         return DB::transaction(function () use ($id, $version, $reason, $actor) {
@@ -535,7 +535,7 @@ final class Purchasing
         ?string $date,
         string $reason,
     ): PurchaseOrder {
-        $actor = Access::authorize('edit');
+        $actor = Access::authorize('edit_orders');
         $this->reason($reason);
         Validator::make(
             ['date' => $date],
@@ -564,8 +564,7 @@ final class Purchasing
         int $unitCostMinor,
         string $reason,
     ): PurchaseOrder {
-        $actor = Access::authorize('edit');
-        Access::authorize('place');
+        $actor = Access::authorize('edit_orders');
         $this->reason($reason);
         Validator::make(compact('quantity', 'unitCostMinor'), [
             'quantity' => ['integer', 'min:1', 'max:'.Limits::MAX_QUANTITY],

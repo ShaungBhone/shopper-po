@@ -94,7 +94,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
 
     public function mount(?int $orderId = null): void
     {
-        Access::authorize($orderId ? 'edit' : 'add');
+        Access::authorize($orderId ? 'edit_orders' : 'add_orders');
         $this->orderId = $orderId;
         if ($orderId) {
             $order = PurchaseOrder::query()->with('items')->findOrFail($orderId);
@@ -211,14 +211,14 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
 
     public function searchProducts(string $search = ''): array
     {
-        Access::authorize($this->orderId ? 'edit' : 'add');
+        Access::authorize($this->orderId ? 'edit_orders' : 'add_orders');
 
         return app(Catalog::class)->options($search, $this->data['items']);
     }
 
     public function addProduct(string $identity): void
     {
-        Access::authorize($this->orderId ? 'edit' : 'add');
+        Access::authorize($this->orderId ? 'edit_orders' : 'add_orders');
         $this->productSelection = null;
         Validator::make(['productSelection' => $identity, 'currency' => $this->data['currency']], [
             'productSelection' => ['required', 'regex:/^(product|variant):[1-9][0-9]*$/'],
@@ -248,7 +248,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
 
     public function changeQuantity(int $index, int $delta): void
     {
-        Access::authorize($this->orderId ? 'edit' : 'add');
+        Access::authorize($this->orderId ? 'edit_orders' : 'add_orders');
         abort_unless(isset($this->data['items'][$index]) && in_array($delta, [-1, 1], true), 422);
         $path = "data.items.{$index}.ordered_quantity";
         $this->validateOnly($path, [$path => Purchasing::draftRules()['items.*.ordered_quantity']]);
@@ -258,7 +258,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
 
     public function refreshPricing(int $index): void
     {
-        Access::authorize($this->orderId ? 'edit' : 'add');
+        Access::authorize($this->orderId ? 'edit_orders' : 'add_orders');
         abort_unless(isset($this->data['items'][$index]), 422);
         $path = "data.items.{$index}.unit_cost_minor";
         $this->validateOnly($path, [$path => $this->costRules()]);
@@ -266,7 +266,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
 
     public function removeLine(int $index): void
     {
-        Access::authorize($this->orderId ? 'edit' : 'add');
+        Access::authorize($this->orderId ? 'edit_orders' : 'add_orders');
         unset($this->data['items'][$index]);
         $this->resetValidation();
     }
@@ -385,7 +385,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
 
     private function validateDraftStep(string $step): void
     {
-        Access::authorize($this->orderId ? 'edit' : 'add');
+        Access::authorize($this->orderId ? 'edit_orders' : 'add_orders');
         try {
             match ($step) {
                 'details' => Validator::make($this->data, Arr::only(Purchasing::draftRules($this->savedCurrency), self::DETAILS_FIELDS))->validate(),
@@ -452,7 +452,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
 
     public function save(): mixed
     {
-        $user = Access::authorize($this->orderId ? 'edit' : 'add');
+        $user = Access::authorize($this->orderId ? 'edit_orders' : 'add_orders');
         try {
             Validator::make($this->data, Arr::only(Purchasing::draftRules($this->savedCurrency), self::DETAILS_FIELDS))->validate();
             $order = app(Purchasing::class)->saveDraft($this->validatePricing(), $this->orderId, $this->version);
@@ -463,7 +463,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
         }
 
         if ($this->orderId === null) {
-            if ($user->can('read_purchase_orders')) {
+            if ($user->can('read_orders')) {
                 return $this->redirectRoute('shopper.purchase-orders.show', ['orderId' => $order->id]);
             }
 
@@ -480,7 +480,7 @@ final class Form extends SlideOverComponent implements HasActions, HasSchemas
 
     public function render(): mixed
     {
-        Access::authorize($this->orderId ? 'edit' : 'add');
+        Access::authorize($this->orderId ? 'edit_orders' : 'add_orders');
         $this->cacheSchema('costsForm');
 
         return view('purchase-orders::draft-panel');

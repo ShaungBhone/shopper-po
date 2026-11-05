@@ -7,7 +7,6 @@ namespace ShopperPurchaseOrders;
 use Illuminate\Support\Facades\Route;
 use Shopper\Addon\BaseAddon;
 use Shopper\ShopperPanel;
-use ShopperPurchaseOrders\Support\Access;
 
 final class PurchaseOrdersAddon extends BaseAddon
 {
@@ -47,6 +46,5 @@ final class PurchaseOrdersAddon extends BaseAddon
             'purchase-orders.receive' => Livewire\Receive::class,
         ]);
         $panel->addonViews('purchase-orders', __DIR__.'/../resources/views');
-        $panel->addonPermissions(Access::permissions());
     }
 }

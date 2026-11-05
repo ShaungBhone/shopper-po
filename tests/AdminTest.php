@@ -47,10 +47,7 @@ final class AdminTest extends TestCase
             app('shopper')->addonManager()->getLivewireComponents()['purchase-orders.index'],
         );
         $this->assertTrue(view()->exists('purchase-orders::index'));
-        $this->assertEqualsCanonicalizing(
-            config('permission.models.permission')::query()->where('name', 'like', '%_purchase_orders')->pluck('name')->all(),
-            app('shopper')->addonManager()->getPermissions(),
-        );
+        $this->assertSame([], app('shopper')->addonManager()->getPermissions());
     }
 
     public function test_full_admin_route_renders_inside_shopper_layout(): void
@@ -368,8 +365,8 @@ final class AdminTest extends TestCase
 
     public function test_creation_has_four_steps_and_add_only_permission_can_reach_review(): void
     {
-        $this->user->revokePermissionTo('edit_purchase_orders');
-        $this->user->revokePermissionTo('read_purchase_orders');
+        $this->user->revokePermissionTo('edit_orders');
+        $this->user->revokePermissionTo('read_orders');
         $editor = Livewire::test(Form::class);
         $wizard = $editor->instance()->getSchema('draftWizard')->getComponents()[0];
         $this->assertInstanceOf(SlideOverWizard::class, $wizard);
@@ -655,7 +652,7 @@ final class AdminTest extends TestCase
         $component->set('data.items', array_fill(0, 100, ['stockable_kind' => 'product', 'stockable_id' => 99999, 'ordered_quantity' => 1, 'unit_cost_minor' => 0]))
             ->call('addProduct', 'product:'.$this->product->id)->assertHasErrors('productSelection');
         $this->assertCount(100, $component->get('data.items'));
-        $this->user->revokePermissionTo('add_purchase_orders');
+        $this->user->revokePermissionTo('add_orders');
         $component->call('addProduct', 'product:'.$this->product->id)->assertForbidden();
     }
 
@@ -827,7 +824,7 @@ final class AdminTest extends TestCase
             'lines.0.accepted',
             2,
         );
-        $this->user->revokePermissionTo('receive_purchase_orders');
+        $this->user->revokePermissionTo('edit_orders');
         $component->call('save')->assertForbidden();
         $this->assertSame(0, InventoryHistory::query()->count());
     }
@@ -889,19 +886,24 @@ final class AdminTest extends TestCase
         $this->assertSame(12, $order->items()->firstOrFail()->ordered_quantity);
     }
 
-    public function test_permission_installer_is_idempotent_and_preserves_existing_permissions(): void
+    public function test_shopper_order_role_controls_access_to_receiving_stock(): void
     {
-        $permission = config('permission.models.permission');
-        $permission::query()->create(['name' => 'existing_permission', 'guard_name' => 'web']);
-        $before = $permission::query()->count();
-        $this->artisan('purchase-orders:install')->assertSuccessful();
-        $this->assertSame($before, $permission::query()->count());
-        $this->assertTrue($permission::query()->where('name', 'existing_permission')->exists());
-        $role = config('permission.models.role')::create(['name' => 'procurement', 'guard_name' => 'web']);
-        $this->artisan('purchase-orders:install', ['--role' => $role->name])->assertSuccessful();
-        $this->assertTrue($role->fresh()->hasPermissionTo('receive_purchase_orders'));
-        $this->assertFalse($role->fresh()->hasPermissionTo('existing_permission'));
-        $this->artisan('purchase-orders:install', ['--role' => 'missing'])->assertFailed();
+        $order = $this->ordered();
+        $role = config('permission.models.role')::create(['name' => 'sales', 'guard_name' => 'web']);
+        $role->givePermissionTo('browse_orders', 'read_orders');
+        $this->user->syncPermissions([])->assignRole($role);
+
+        Livewire::test(Index::class)->assertCanSeeTableRecords([$order]);
+        Livewire::test(Detail::class, ['orderId' => $order->id])->assertSee($order->number);
+        Livewire::test(Receive::class, ['orderId' => $order->id])->assertForbidden();
+
+        $role->givePermissionTo('edit_orders');
+        $this->actingAs($this->user->fresh(), 'web');
+        Livewire::test(Receive::class, ['orderId' => $order->id])
+            ->set('lines.0.accepted', 2)
+            ->call('save')
+            ->assertHasNoErrors();
+        $this->assertSame(2, $this->product->stockInventory($this->inventory->id));
     }
 
     public function test_disabled_addon_rejects_actions_even_if_a_page_is_already_open(): void

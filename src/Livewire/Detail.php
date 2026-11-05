@@ -55,7 +55,7 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
 
     public function mount(int $orderId): void
     {
-        Access::authorize('read');
+        Access::authorize('read_orders');
         $this->orderId = $orderId;
         $this->version = $this->order->version;
         $this->correctionKey = (string) Str::uuid();
@@ -64,7 +64,7 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
     #[Computed]
     public function order(): PurchaseOrder
     {
-        Access::authorize('read');
+        Access::authorize('read_orders');
 
         return PurchaseOrder::query()
             ->with(['items', 'receipts.items.corrections', 'history'])
@@ -77,7 +77,7 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
             ->label('Audit history')
             ->color('gray')
             ->icon('heroicon-o-clock')
-            ->authorize(fn (): bool => $this->can('read'))
+            ->authorize(fn (): bool => $this->can('read_orders'))
             ->slideOver()
             ->modalWidth(Width::Large)
             ->modalHeading('Audit history')
@@ -86,7 +86,7 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
             ->modalCancelActionLabel('Close')
             ->modalContent(function (): View {
                 $order = $this->order;
-                $reader = Access::authorize('read');
+                $reader = Access::authorize('read_orders');
                 $actorIds = $order->history->pluck('actor_id')->filter()->unique()->all();
                 $actors = $reader instanceof Model && $actorIds !== []
                     ? $reader->newQuery()->whereKey($actorIds)->get()->keyBy(fn (Model $actor) => $actor->getKey())
@@ -106,7 +106,7 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
     {
         return Action::make('place')
             ->label('Mark ordered')
-            ->authorize(fn (): bool => $this->can('place'))
+            ->authorize(fn (): bool => $this->can('edit_orders'))
             ->visible(fn (): bool => $this->order->state === OrderState::Draft)
             ->requiresConfirmation()
             ->slideOver()
@@ -122,7 +122,7 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
 
     public function closeOrderAction(): Action
     {
-        return $this->reasonAction('closeOrder', 'Close purchase order', 'close')
+        return $this->reasonAction('closeOrder', 'Close purchase order')
             ->visible(fn (): bool => $this->order->state === OrderState::Ordered)
             ->modalDescription('Closing waives the outstanding units and keeps stock from recorded deliveries.')
             ->action(fn (Purchasing $purchasing, array $data) => $this->applyChange(
@@ -132,7 +132,7 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
 
     public function closeLineAction(): Action
     {
-        return $this->reasonAction('closeLine', 'Close line', 'close')
+        return $this->reasonAction('closeLine', 'Close line')
             ->visible(fn (array $arguments): bool => $this->order->state === OrderState::Ordered
                 && $this->order->items->find($arguments['itemId'] ?? null)?->outstanding() > 0)
             ->modalDescription('Waive the outstanding units on this line.')
@@ -143,7 +143,7 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
 
     public function restoreLineAction(): Action
     {
-        return $this->reasonAction('restoreLine', 'Restore closed balance', 'close')
+        return $this->reasonAction('restoreLine', 'Restore closed balance')
             ->visible(fn (array $arguments): bool => $this->order->state === OrderState::Ordered
                 && $this->order->items->find($arguments['itemId'] ?? null)?->short_closed_quantity > 0)
             ->modalDescription('Restore units previously waived by closing this line.')
@@ -154,7 +154,7 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
 
     public function reopenAction(): Action
     {
-        return $this->reasonAction('reopen', 'Reopen purchase order', 'close')
+        return $this->reasonAction('reopen', 'Reopen purchase order')
             ->visible(fn (): bool => $this->order->state === OrderState::Closed)
             ->modalDescription('Previously waived balances stay waived when you reopen the order.')
             ->action(fn (Purchasing $purchasing, array $data) => $this->applyChange(
@@ -164,7 +164,7 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
 
     public function cancelOrderAction(): Action
     {
-        return $this->reasonAction('cancelOrder', 'Cancel', 'cancel')
+        return $this->reasonAction('cancelOrder', 'Cancel')
             ->button()
             ->color(OrderStatus::Cancelled->getColor())
             ->icon(OrderStatus::Cancelled->getIcon())
@@ -179,7 +179,7 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
 
     public function expectedDateAction(): Action
     {
-        return $this->reasonAction('expectedDate', 'Update expected delivery', 'edit')
+        return $this->reasonAction('expectedDate', 'Update expected delivery')
             ->visible(fn (): bool => $this->order->state === OrderState::Ordered)
             ->schema([DatePicker::make('date')->label('Expected delivery'), $this->reasonField()])
             ->fillForm(fn (): array => ['date' => $this->order->expected_at?->toDateString()])
@@ -190,8 +190,7 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
 
     public function amendAction(): Action
     {
-        return $this->reasonAction('amend', 'Amend line', 'edit')
-            ->authorize(fn (): bool => $this->can('edit') && $this->can('place'))
+        return $this->reasonAction('amend', 'Amend line')
             ->visible(fn (): bool => $this->order->state === OrderState::Ordered)
             ->modalDescription('Each existing receipt keeps its original unit cost.')
             ->schema([
@@ -224,7 +223,7 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
 
     public function correctAction(): Action
     {
-        return $this->reasonAction('correct', 'Correct receipt line', 'correct')
+        return $this->reasonAction('correct', 'Correct receipt line')
             ->modalWidth(Width::Large)
             ->visible(fn (): bool => $this->order->state === OrderState::Ordered)
             ->modalDescription('Enter the corrected counts for this receipt line. Use a new delivery for additional units.')
@@ -256,11 +255,11 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
             ));
     }
 
-    private function reasonAction(string $name, string $label, string $ability): Action
+    private function reasonAction(string $name, string $label): Action
     {
         return Action::make($name)
             ->label($label)
-            ->authorize(fn (): bool => $this->can($ability))
+            ->authorize(fn (): bool => $this->can('edit_orders'))
             ->slideOver()
             ->modalWidth(Width::ExtraLarge)
             ->modalFooterActionsAlignment(Alignment::End)
@@ -273,9 +272,9 @@ final class Detail extends AbstractPageComponent implements HasActions, HasSchem
         return Textarea::make('reason')->required()->maxLength(5000);
     }
 
-    private function can(string $ability): bool
+    private function can(string $permission): bool
     {
-        return Access::authorize('read')->can($ability.'_purchase_orders');
+        return Access::authorize('read_orders')->can($permission);
     }
 
     private function line(array $arguments): PurchaseOrderItem

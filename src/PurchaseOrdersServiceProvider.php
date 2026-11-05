@@ -28,8 +28,5 @@ final class PurchaseOrdersServiceProvider extends ServiceProvider
             'po_receipt_item' => ReceiptItem::class,
             'po_receipt_correction' => ReceiptCorrection::class,
         ]);
-        if ($this->app->runningInConsole()) {
-            $this->commands([Console\Install::class]);
-        }
     }
 }
